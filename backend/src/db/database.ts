@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import Database, { Database as DatabaseType } from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
@@ -9,7 +9,7 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-const db = new Database(DB_PATH);
+const db: DatabaseType = new Database(DB_PATH);
 
 // Enable WAL mode for better performance
 db.pragma('journal_mode = WAL');
