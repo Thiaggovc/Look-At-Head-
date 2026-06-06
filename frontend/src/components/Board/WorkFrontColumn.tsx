@@ -34,7 +34,7 @@ export default function WorkFrontColumn({ id, title, subtitle, activities, color
   return (
     <div
       className="kanban-column flex-shrink-0"
-      style={{ width: 300, minWidth: 280, maxWidth: 320 }}
+      style={{ width: 300, minWidth: 280, maxWidth: 320, height: '100%', minHeight: 0 }}
     >
       {/* Header */}
       <div

@@ -116,6 +116,7 @@ export default function BoardPage({ selectedProject }: BoardPageProps) {
           <Board
             activities={activities}
             projectId={selectedProject.id}
+            projectName={selectedProject.name}
             onRefresh={loadActivities}
           />
         </div>

@@ -75,6 +75,7 @@ function buildColDateMap(
   sheet: XLSX.WorkSheet,
   range: XLSX.Range,
   dataStartCol: number,
+  anchor?: { year: number; month: number; day: number },
 ): { colDateMap: Map<number, string>; dayColumns: number[]; dayNameRow: number; year: number } {
   const maxScanRow = Math.min(range.e.r, 25);
   const maxCol = range.e.c;
@@ -95,11 +96,14 @@ function buildColDateMap(
 
   const dayNumRow = dayNameRow - 1;
 
+  // Locate the row that holds month labels (e.g. "MAY", "JUN") so we can read
+  // the starting month. These labels live in merged header cells and are NOT
+  // aligned per day-column, so we only use them to seed the FIRST month.
   let monthRow = -1;
   for (let offset = 1; offset <= 3; offset++) {
     const r = dayNameRow - offset;
     if (r < 0) break;
-    for (let c = dataStartCol; c <= maxCol; c++) {
+    for (let c = 0; c <= maxCol; c++) {
       const v = cell(sheet, r, c).toLowerCase().substring(0, 3);
       if (MONTH_MAP[v]) { monthRow = r; break; }
     }
@@ -115,42 +119,51 @@ function buildColDateMap(
     }
   }
 
-  const colDateMap = new Map<number, string>();
   const dayColumns: number[] = [];
-  let currentMonth = 0;
-
   const dayColSet = new Set<number>();
   for (let c = dataStartCol; c <= maxCol; c++) {
     const v = cell(sheet, dayNameRow, c).toLowerCase();
-    if (DAY_NAMES.has(v)) dayColSet.add(c);
+    if (DAY_NAMES.has(v)) { dayColSet.add(c); dayColumns.push(c); }
   }
 
-  for (let c = dataStartCol; c <= maxCol; c++) {
-    if (monthRow >= 0) {
+  // Seed the starting month/year by reading the first month label found to the
+  // left of / at the first day column. The explicit anchor (the look-ahead start
+  // date chosen by the user) is only a FALLBACK for sheets with no readable month.
+  let curYear = year;
+  let curMonth = 0;
+  if (monthRow >= 0 && dayColumns.length > 0) {
+    for (let c = 0; c <= dayColumns[0]; c++) {
       const mv = cell(sheet, monthRow, c).toLowerCase().substring(0, 3);
-      if (MONTH_MAP[mv]) currentMonth = MONTH_MAP[mv];
+      if (MONTH_MAP[mv]) curMonth = MONTH_MAP[mv];
     }
+  }
+  if (curMonth === 0 && anchor) {
+    curYear = anchor.year;
+    curMonth = anchor.month;
+  }
+  if (curMonth === 0) curMonth = new Date().getMonth() + 1;
 
-    if (!dayColSet.has(c)) continue;
-    dayColumns.push(c);
+  // Walk day columns left→right, reading the day NUMBER from each. When the day
+  // number drops (e.g. 31 → 1) we crossed into the next month, so roll forward.
+  // This is what makes consecutive files (May→Jun, Jun→Jul) resolve correctly.
+  const colDateMap = new Map<number, string>();
+  let prevDay = 0;
+  for (const c of dayColumns) {
+    const dayNum = parseInt(cell(sheet, dayNumRow, c), 10);
+    if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) { prevDay = 0; continue; }
 
-    const dayStr = cell(sheet, dayNumRow, c);
-    const dayNum = parseInt(dayStr, 10);
-    if (isNaN(dayNum) || dayNum < 1 || dayNum > 31 || currentMonth === 0) continue;
+    if (prevDay && dayNum < prevDay) {
+      curMonth++;
+      if (curMonth > 12) { curMonth = 1; curYear++; }
+    }
+    prevDay = dayNum;
 
-    const mm = String(currentMonth).padStart(2, '0');
+    const mm = String(curMonth).padStart(2, '0');
     const dd = String(dayNum).padStart(2, '0');
-    colDateMap.set(c, `${year}-${mm}-${dd}`);
+    colDateMap.set(c, `${curYear}-${mm}-${dd}`);
   }
 
-  return { colDateMap, dayColumns, dayNameRow, year };
-}
-
-function addDays(iso: string, n: number): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + n);
-  return dt.toISOString().slice(0, 10);
+  return { colDateMap, dayColumns, dayNameRow, year: curYear };
 }
 
 function findWeekLabel(sheet: XLSX.WorkSheet, range: XLSX.Range): string {
@@ -203,23 +216,34 @@ export function parseExcelFile(
     const DATA_COL_RES  = 4;  // E
     const DATA_COL_SCHED_START = 5; // F
 
-    const detected = buildColDateMap(sheet, range, DATA_COL_SCHED_START);
+    // Use the look-ahead start date (if provided) to anchor the first month/year,
+    // then let the parser roll months over based on the day numbers in the sheet.
+    let anchor: { year: number; month: number; day: number } | undefined;
+    if (options.startDate) {
+      const [ay, am, ad] = options.startDate.split('-').map(Number);
+      anchor = { year: ay, month: am, day: ad };
+    }
+
+    const detected = buildColDateMap(sheet, range, DATA_COL_SCHED_START, anchor);
     const dayNameRow = detected.dayNameRow;
     if (dayNameRow === -1) continue;
 
+    // The window (start/end) only FILTERS which columns count — the dates
+    // themselves come from each column's real day number in the sheet.
     let colDateMap: Map<number, string>;
     let dayColumns: number[];
 
-    if (options.startDate) {
+    if (options.startDate || options.endDate) {
       colDateMap = new Map();
       dayColumns = [];
-      detected.dayColumns.forEach((col, i) => {
-        const date = addDays(options.startDate!, i);
-        if (!options.endDate || date <= options.endDate) {
-          colDateMap.set(col, date);
-          dayColumns.push(col);
-        }
-      });
+      for (const col of detected.dayColumns) {
+        const date = detected.colDateMap.get(col);
+        if (!date) continue;
+        if (options.startDate && date < options.startDate) continue;
+        if (options.endDate && date > options.endDate) continue;
+        colDateMap.set(col, date);
+        dayColumns.push(col);
+      }
     } else {
       colDateMap = detected.colDateMap;
       dayColumns = detected.dayColumns;

@@ -15,11 +15,13 @@ import WorkFrontColumn from './WorkFrontColumn';
 import ActivityCard from './ActivityCard';
 import FilterBar from '../Filters/FilterBar';
 import ActivityFormModal from '../Activities/ActivityFormModal';
-import { Plus } from 'lucide-react';
+import { exportBoardToPdf, PdfColumn } from '../../lib/pdfExport';
+import { Plus, FileDown } from 'lucide-react';
 
 interface BoardProps {
   activities: Activity[];
   projectId: string;
+  projectName?: string;
   onRefresh: () => void;
 }
 
@@ -89,7 +91,7 @@ function groupActivities(activities: Activity[], groupBy: Filters['groupBy']): M
   return map;
 }
 
-export default function Board({ activities, projectId, onRefresh }: BoardProps) {
+export default function Board({ activities, projectId, projectName, onRefresh }: BoardProps) {
   const [filters, setFilters] = useState<Filters>({ groupBy: 'endDate' });
   const [localActivities, setLocalActivities] = useState<Activity[]>(activities);
   const [activeActivity, setActiveActivity] = useState<Activity | null>(null);
@@ -124,6 +126,23 @@ export default function Board({ activities, projectId, onRefresh }: BoardProps) 
     });
   };
 
+  const handleExportPdf = () => {
+    const pdfColumns: PdfColumn[] = columns.map(([key, acts]) => {
+      const fmt = filters.groupBy === 'endDate' && /^\d{4}-\d{2}-\d{2}$/.test(key)
+        ? formatColumnTitle(key)
+        : null;
+      return {
+        title: fmt ? fmt.main : key,
+        subtitle: fmt ? fmt.sub : undefined,
+        activities: acts,
+      };
+    });
+    exportBoardToPdf(pdfColumns, {
+      projectName: projectName ?? 'Look Ahead',
+      groupLabel,
+    });
+  };
+
   const groupLabel = filters.groupBy === 'endDate' ? 'días'
     : filters.groupBy === 'workFront' ? 'frentes'
     : filters.groupBy === 'discipline' ? 'disciplinas'
@@ -155,6 +174,15 @@ export default function Board({ activities, projectId, onRefresh }: BoardProps) 
         <span className="flex-1" />
 
         <button
+          onClick={handleExportPdf}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+          style={{ background: 'rgba(245,166,35,0.15)', color: '#B36B00', border: '1px solid rgba(245,166,35,0.4)' }}
+        >
+          <FileDown className="w-3.5 h-3.5" />
+          Exportar PDF
+        </button>
+
+        <button
           onClick={() => setEditingActivity(null)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all"
           style={{ background: 'linear-gradient(135deg,#F5A623,#E07B00)', boxShadow: '0 2px 8px rgba(245,166,35,0.35)' }}
@@ -172,7 +200,7 @@ export default function Board({ activities, projectId, onRefresh }: BoardProps) 
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-4 p-5 h-full min-h-0 items-start">
+          <div className="flex gap-4 p-5 h-full min-h-0 items-stretch">
             {columns.map(([key, acts], index) => {
               const fmt = filters.groupBy === 'endDate' && /^\d{4}-\d{2}-\d{2}$/.test(key)
                 ? formatColumnTitle(key)
