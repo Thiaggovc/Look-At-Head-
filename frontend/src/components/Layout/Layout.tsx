@@ -311,7 +311,7 @@ export default function Layout({
           </div>
         </div>
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-hidden flex flex-col">
           {children}
         </main>
       </div>

@@ -123,7 +123,7 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto overflow-y-auto h-full">
 
       {/* Page header */}
       <div className="flex items-start justify-between mb-6">

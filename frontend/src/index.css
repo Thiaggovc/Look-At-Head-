@@ -152,6 +152,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    min-height: 0;
     transition: box-shadow 180ms;
   }
   .kanban-column:hover {
@@ -183,7 +184,10 @@
     flex-direction: column;
     gap: 10px;
     overflow-y: auto;
+    overflow-x: hidden;
     min-height: 80px;
+    /* Without a min-height:0 the flex child ignores overflow and expands */
+    min-height: 0;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
