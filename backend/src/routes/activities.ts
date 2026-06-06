@@ -83,15 +83,15 @@ router.get('/stats', (req: Request, res: Response) => {
     `).get(...params) as { count: number }).count;
 
     const byStatus = db.prepare(`
-      SELECT status, COUNT(*) as count FROM activities a JOIN snapshots s ON a.snapshot_id = s.id WHERE ${whereClause} GROUP BY status
+      SELECT a.status as status, COUNT(*) as count FROM activities a JOIN snapshots s ON a.snapshot_id = s.id WHERE ${whereClause} GROUP BY a.status
     `).all(...params);
 
     const byDiscipline = db.prepare(`
-      SELECT discipline, COUNT(*) as count FROM activities a JOIN snapshots s ON a.snapshot_id = s.id WHERE ${whereClause} GROUP BY discipline
+      SELECT a.discipline as discipline, COUNT(*) as count FROM activities a JOIN snapshots s ON a.snapshot_id = s.id WHERE ${whereClause} GROUP BY a.discipline
     `).all(...params);
 
     const byWorkFront = db.prepare(`
-      SELECT work_front, COUNT(*) as count FROM activities a JOIN snapshots s ON a.snapshot_id = s.id WHERE ${whereClause} GROUP BY work_front
+      SELECT a.work_front as work_front, COUNT(*) as count FROM activities a JOIN snapshots s ON a.snapshot_id = s.id WHERE ${whereClause} GROUP BY a.work_front
     `).all(...params);
 
     res.json({ total, byStatus, byDiscipline, byWorkFront });
