@@ -14,16 +14,19 @@ import { Activity, Filters, STATUS_CONFIG } from '../../types';
 import WorkFrontColumn from './WorkFrontColumn';
 import ActivityCard from './ActivityCard';
 import FilterBar from '../Filters/FilterBar';
+import ActivityFormModal from '../Activities/ActivityFormModal';
+import { Plus } from 'lucide-react';
 
 interface BoardProps {
   activities: Activity[];
+  projectId: string;
+  onRefresh: () => void;
 }
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
 function formatColumnTitle(dateStr: string): { main: string; sub: string; dayIndex: number } {
-  // dateStr = 'YYYY-MM-DD'
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return { main: dateStr, sub: '', dayIndex: 0 };
   }
@@ -59,9 +62,7 @@ function groupActivities(activities: Activity[], groupBy: Filters['groupBy']): M
 
   for (const a of activities) {
     let key: string;
-
     if (groupBy === 'endDate') {
-      // Group by end date; activities without a date go to 'Sin fecha'
       key = a.endDate ?? 'Sin fecha';
     } else if (groupBy === 'workFront') {
       key = a.workFront;
@@ -75,25 +76,25 @@ function groupActivities(activities: Activity[], groupBy: Filters['groupBy']): M
     map.get(key)!.push(a);
   }
 
-  // Sort date-based columns chronologically
   if (groupBy === 'endDate') {
-    const sorted = new Map(
+    return new Map(
       [...map.entries()].sort(([a], [b]) => {
         if (a === 'Sin fecha') return 1;
         if (b === 'Sin fecha') return -1;
         return a.localeCompare(b);
       })
     );
-    return sorted;
   }
 
   return map;
 }
 
-export default function Board({ activities }: BoardProps) {
+export default function Board({ activities, projectId, onRefresh }: BoardProps) {
   const [filters, setFilters] = useState<Filters>({ groupBy: 'endDate' });
   const [localActivities, setLocalActivities] = useState<Activity[]>(activities);
   const [activeActivity, setActiveActivity] = useState<Activity | null>(null);
+  const [editingActivity, setEditingActivity] = useState<Activity | null | undefined>(undefined);
+  // undefined = modal closed, null = new activity, Activity = editing
 
   if (activities !== localActivities && activities.length !== localActivities.length) {
     setLocalActivities(activities);
@@ -132,7 +133,7 @@ export default function Board({ activities }: BoardProps) {
     <div className="flex flex-col h-full">
       <FilterBar filters={filters} onChange={setFilters} activities={localActivities} />
 
-      {/* Stats bar */}
+      {/* Stats + Nueva actividad */}
       <div
         className="px-5 py-2.5 flex items-center gap-3 text-xs font-medium border-b"
         style={{
@@ -150,6 +151,17 @@ export default function Board({ activities }: BoardProps) {
         <span style={{ color: '#D94B4B' }}>{filtered.filter(a => a.status === 'blocked').length} bloqueadas</span>
         <span className="text-gray-300">·</span>
         <span style={{ color: '#D7A700' }}>{filtered.filter(a => a.status === 'pending').length} pendientes</span>
+
+        <span className="flex-1" />
+
+        <button
+          onClick={() => setEditingActivity(null)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all"
+          style={{ background: 'linear-gradient(135deg,#F5A623,#E07B00)', boxShadow: '0 2px 8px rgba(245,166,35,0.35)' }}
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Nueva actividad
+        </button>
       </div>
 
       {/* Board */}
@@ -173,6 +185,7 @@ export default function Board({ activities }: BoardProps) {
                   subtitle={fmt ? fmt.sub : undefined}
                   activities={acts}
                   colorIndex={fmt ? fmt.dayIndex : index}
+                  onEditActivity={setEditingActivity}
                 />
               );
             })}
@@ -183,7 +196,15 @@ export default function Board({ activities }: BoardProps) {
                   style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(245,166,35,0.2)' }}
                 >
                   <p className="text-lg font-semibold text-gray-600 mb-1">Sin actividades</p>
-                  <p className="text-sm text-gray-400">Ajusta los filtros o sube un archivo Excel</p>
+                  <p className="text-sm text-gray-400">Ajusta los filtros o crea una nueva actividad</p>
+                  <button
+                    onClick={() => setEditingActivity(null)}
+                    className="mt-4 flex items-center gap-2 mx-auto px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                    style={{ background: 'linear-gradient(135deg,#F5A623,#E07B00)' }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Nueva actividad
+                  </button>
                 </div>
               </div>
             )}
@@ -198,6 +219,16 @@ export default function Board({ activities }: BoardProps) {
           </DragOverlay>
         </DndContext>
       </div>
+
+      {/* Modal */}
+      {editingActivity !== undefined && (
+        <ActivityFormModal
+          projectId={projectId}
+          activity={editingActivity}
+          onClose={() => setEditingActivity(undefined)}
+          onSaved={onRefresh}
+        />
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ interface WorkFrontColumnProps {
   subtitle?: string;
   activities: Activity[];
   colorIndex?: number;
+  onEditActivity?: (activity: Activity) => void;
 }
 
 const COLUMN_PALETTES = [
@@ -22,7 +23,7 @@ const COLUMN_PALETTES = [
   { base: '#67D7F5', surface: 'rgba(103,215,245,0.82)', accent: '#0EA5C9', text: '#0B5E7A' },
 ];
 
-export default function WorkFrontColumn({ id, title, subtitle, activities, colorIndex = 0 }: WorkFrontColumnProps) {
+export default function WorkFrontColumn({ id, title, subtitle, activities, colorIndex = 0, onEditActivity }: WorkFrontColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
   const palette = COLUMN_PALETTES[colorIndex % COLUMN_PALETTES.length];
 
@@ -130,7 +131,7 @@ export default function WorkFrontColumn({ id, title, subtitle, activities, color
       >
         <SortableContext items={activities.map(a => a.id)} strategy={verticalListSortingStrategy}>
           {activities.map(activity => (
-            <ActivityCard key={activity.id} activity={activity} accentColor={palette.accent} />
+            <ActivityCard key={activity.id} activity={activity} accentColor={palette.accent} onEdit={onEditActivity} />
           ))}
         </SortableContext>
         {activities.length === 0 && (

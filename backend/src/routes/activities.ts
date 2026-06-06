@@ -1,4 +1,6 @@
 import { Router, Request, Response } from 'express';
+import { createHash } from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 import db from '../db/database';
 import { Activity } from '../types';
 
@@ -108,6 +110,106 @@ router.get('/:id', (req: Request, res: Response) => {
     res.json(rowToActivity(row));
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch activity', details: String(err) });
+  }
+});
+
+// POST /api/activities  – create a single activity manually
+router.post('/', (req: Request, res: Response) => {
+  try {
+    const { projectId, workFront, generalTitle, description, resources, startDate, endDate, discipline, status } = req.body;
+    if (!projectId) return res.status(400).json({ error: 'projectId is required' });
+
+    // Find or create the "Manual" snapshot for this project
+    let snapshot = db.prepare(
+      "SELECT * FROM snapshots WHERE project_id = ? AND filename = '__manual__'"
+    ).get(projectId) as Record<string, unknown> | undefined;
+
+    if (!snapshot) {
+      const sid = uuidv4();
+      const now = new Date().toISOString();
+      db.prepare(
+        "INSERT INTO snapshots (id, project_id, discipline, filename, uploaded_at, week_label) VALUES (?, ?, ?, ?, ?, ?)"
+      ).run(sid, projectId, discipline || 'General', '__manual__', now, 'Entrada manual');
+      snapshot = db.prepare('SELECT * FROM snapshots WHERE id = ?').get(sid) as Record<string, unknown>;
+    }
+
+    const id = uuidv4();
+    const fp = createHash('md5').update(`${workFront || ''}|${generalTitle || ''}|${description || ''}`).digest('hex');
+
+    const dur = (startDate && endDate)
+      ? Math.max(0, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1)
+      : 0;
+
+    db.prepare(`
+      INSERT INTO activities (id, snapshot_id, work_front, general_title, description, resources,
+        scheduled_days, start_date, end_date, duration_days, discipline, status, source_file, fingerprint)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id, snapshot.id as string,
+      workFront || '', generalTitle || description || '', description || '',
+      resources || '', '[]',
+      startDate || null, endDate || null, dur,
+      discipline || 'General', status || 'pending',
+      '__manual__', fp
+    );
+
+    db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), projectId);
+
+    const created = db.prepare('SELECT * FROM activities WHERE id = ?').get(id) as Record<string, unknown>;
+    res.status(201).json(rowToActivity(created));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create activity', details: String(err) });
+  }
+});
+
+// PUT /api/activities/:id  – update an activity
+router.put('/:id', (req: Request, res: Response) => {
+  try {
+    const existing = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.id) as Record<string, unknown> | undefined;
+    if (!existing) return res.status(404).json({ error: 'Activity not found' });
+
+    const { workFront, generalTitle, description, resources, startDate, endDate, discipline, status } = req.body;
+
+    const wf   = workFront   ?? existing.work_front;
+    const gt   = generalTitle ?? existing.general_title;
+    const desc = description  ?? existing.description;
+    const res2 = resources    ?? existing.resources;
+    const sd   = startDate !== undefined ? (startDate || null) : existing.start_date;
+    const ed   = endDate   !== undefined ? (endDate   || null) : existing.end_date;
+    const disc = discipline  ?? existing.discipline;
+    const stat = status      ?? existing.status;
+    const dur  = (sd && ed)
+      ? Math.max(0, Math.round((new Date(ed as string).getTime() - new Date(sd as string).getTime()) / 86400000) + 1)
+      : existing.duration_days;
+    const fp   = createHash('md5').update(`${wf}|${gt}|${desc}`).digest('hex');
+
+    db.prepare(`
+      UPDATE activities SET
+        work_front=?, general_title=?, description=?, resources=?,
+        start_date=?, end_date=?, duration_days=?, discipline=?, status=?, fingerprint=?
+      WHERE id=?
+    `).run(wf, gt, desc, res2, sd, ed, dur, disc, stat, fp, req.params.id);
+
+    // update project timestamp
+    const snap = db.prepare('SELECT * FROM snapshots WHERE id = ?').get(existing.snapshot_id as string) as Record<string, unknown>;
+    if (snap) db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), snap.project_id);
+
+    const updated = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.id) as Record<string, unknown>;
+    res.json(rowToActivity(updated));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update activity', details: String(err) });
+  }
+});
+
+// DELETE /api/activities/:id
+router.delete('/:id', (req: Request, res: Response) => {
+  try {
+    const existing = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Activity not found' });
+    db.prepare('DELETE FROM activities WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete activity', details: String(err) });
   }
 });
 

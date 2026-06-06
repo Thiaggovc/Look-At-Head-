@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Project, Snapshot, Activity } from '../types';
-import { snapshotsApi } from '../api/client';
+import { snapshotsApi, activitiesApi } from '../api/client';
 import Board from '../components/Board/Board';
 import { FileSpreadsheet, ChevronDown, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
@@ -22,8 +22,8 @@ export default function BoardPage({ selectedProject }: BoardPageProps) {
     try {
       const snaps = await snapshotsApi.list(selectedProject.id);
       setSnapshots(snaps);
-      if (snaps.length > 0 && !selectedSnapshotId) {
-        setSelectedSnapshotId(snaps[0].id);
+      if (!selectedSnapshotId) {
+        setSelectedSnapshotId('__all__');
       }
     } catch (err) {
       console.error(err);
@@ -33,20 +33,24 @@ export default function BoardPage({ selectedProject }: BoardPageProps) {
   }, [selectedProject]);
 
   const loadActivities = useCallback(async () => {
-    if (!selectedSnapshotId) {
-      setActivities([]);
-      return;
-    }
+    if (!selectedProject) return;
     setLoadingActivities(true);
     try {
-      const acts = await snapshotsApi.getActivities(selectedSnapshotId);
+      let acts: Activity[];
+      if (selectedSnapshotId === '__all__') {
+        acts = await activitiesApi.list({ projectId: selectedProject.id });
+      } else if (selectedSnapshotId) {
+        acts = await snapshotsApi.getActivities(selectedSnapshotId);
+      } else {
+        acts = [];
+      }
       setActivities(acts);
     } catch (err) {
       console.error(err);
     } finally {
       setLoadingActivities(false);
     }
-  }, [selectedSnapshotId]);
+  }, [selectedSnapshotId, selectedProject]);
 
   useEffect(() => { loadSnapshots(); }, [loadSnapshots]);
   useEffect(() => { loadActivities(); }, [loadActivities]);
@@ -71,17 +75,6 @@ export default function BoardPage({ selectedProject }: BoardPageProps) {
     );
   }
 
-  if (snapshots.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-500">
-        <div className="text-center">
-          <FileSpreadsheet className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="font-medium">No hay datos para mostrar</p>
-          <p className="text-sm mt-1">Sube un archivo Excel desde el Dashboard</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -94,7 +87,8 @@ export default function BoardPage({ selectedProject }: BoardPageProps) {
             onChange={e => setSelectedSnapshotId(e.target.value)}
             className="appearance-none bg-gray-800 border border-gray-700 rounded-lg pl-3 pr-8 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-400 cursor-pointer"
           >
-            {snapshots.map(s => (
+              <option value="__all__">— Todos los registros —</option>
+            {snapshots.filter(s => s.filename !== '__manual__').map(s => (
               <option key={s.id} value={s.id}>
                 {s.filename} — {s.discipline} ({s.week_label})
               </option>
@@ -119,7 +113,11 @@ export default function BoardPage({ selectedProject }: BoardPageProps) {
         </div>
       ) : (
         <div className="flex-1 overflow-hidden">
-          <Board activities={activities} />
+          <Board
+            activities={activities}
+            projectId={selectedProject.id}
+            onRefresh={loadActivities}
+          />
         </div>
       )}
     </div>

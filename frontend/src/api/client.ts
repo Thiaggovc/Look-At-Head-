@@ -65,6 +65,17 @@ export const uploadApi = {
   },
 };
 
+export interface ActivityInput {
+  workFront: string;
+  generalTitle: string;
+  description: string;
+  resources: string;
+  startDate: string;
+  endDate: string;
+  discipline: string;
+  status: 'active' | 'blocked' | 'pending';
+}
+
 // Activities
 export const activitiesApi = {
   list: (params: Record<string, string>) =>
@@ -72,6 +83,12 @@ export const activitiesApi = {
   stats: (params: Record<string, string>) =>
     api.get<Stats>('/activities/stats', { params }).then(r => r.data),
   get: (id: string) => api.get<Activity>(`/activities/${id}`).then(r => r.data),
+  create: (data: ActivityInput & { projectId: string }) =>
+    api.post<Activity>('/activities', data).then(r => r.data),
+  update: (id: string, data: Partial<ActivityInput>) =>
+    api.put<Activity>(`/activities/${id}`, data).then(r => r.data),
+  remove: (id: string) =>
+    api.delete(`/activities/${id}`).then(r => r.data),
 };
 
 export default api;

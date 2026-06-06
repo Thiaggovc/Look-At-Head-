@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Activity, getDisciplineColor, STATUS_CONFIG } from '../../types';
-import { Calendar, Wrench, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { Calendar, Wrench, ChevronDown, ChevronUp, Clock, Pencil } from 'lucide-react';
 import clsx from 'clsx';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -9,6 +9,7 @@ interface ActivityCardProps {
   activity: Activity;
   compact?: boolean;
   accentColor?: string;
+  onEdit?: (activity: Activity) => void;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -27,7 +28,7 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
   pending: { bg: 'rgba(244,211,79,0.25)', color: '#92400E', label: 'Pendiente' },
 };
 
-export default function ActivityCard({ activity, compact = false, accentColor = '#F5A623' }: ActivityCardProps) {
+export default function ActivityCard({ activity, compact = false, accentColor = '#F5A623', onEdit }: ActivityCardProps) {
   const [expanded, setExpanded] = useState(false);
   const color = getDisciplineColor(activity.discipline);
   const statusStyle = STATUS_STYLES[activity.status] ?? STATUS_STYLES.pending;
@@ -54,6 +55,17 @@ export default function ActivityCard({ activity, compact = false, accentColor = 
         className="absolute top-0 left-0 right-0 h-[3px] rounded-t-[14px]"
         style={{ background: accentColor }}
       />
+
+      {/* Edit button — visible on hover */}
+      {onEdit && (
+        <button
+          onClick={e => { e.stopPropagation(); onEdit(activity); }}
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-amber-100"
+          title="Editar actividad"
+        >
+          <Pencil className="w-3.5 h-3.5 text-amber-500" />
+        </button>
+      )}
 
       <div className="mt-1">
         {/* Header */}
