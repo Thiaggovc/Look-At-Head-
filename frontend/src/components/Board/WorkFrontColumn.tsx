@@ -8,6 +8,7 @@ import { Building2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 interface WorkFrontColumnProps {
   id: string;
   title: string;
+  subtitle?: string;
   activities: Activity[];
   colorIndex?: number;
 }
@@ -21,7 +22,7 @@ const COLUMN_PALETTES = [
   { base: '#67D7F5', surface: 'rgba(103,215,245,0.82)', accent: '#0EA5C9', text: '#0B5E7A' },
 ];
 
-export default function WorkFrontColumn({ id, title, activities, colorIndex = 0 }: WorkFrontColumnProps) {
+export default function WorkFrontColumn({ id, title, subtitle, activities, colorIndex = 0 }: WorkFrontColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
   const palette = COLUMN_PALETTES[colorIndex % COLUMN_PALETTES.length];
 
@@ -55,13 +56,20 @@ export default function WorkFrontColumn({ id, title, activities, colorIndex = 0 
           >
             <Building2 className="w-3.5 h-3.5" style={{ color: palette.text }} />
           </div>
-          <h3
-            className="font-semibold text-sm flex-1 min-w-0 truncate"
-            style={{ color: palette.text }}
-            title={title}
-          >
-            {title}
-          </h3>
+          <div className="flex-1 min-w-0">
+            <h3
+              className="font-semibold text-sm truncate leading-tight"
+              style={{ color: palette.text }}
+              title={title}
+            >
+              {title}
+            </h3>
+            {subtitle && (
+              <p className="text-[10px] font-medium truncate mt-0.5" style={{ color: palette.text, opacity: 0.65 }}>
+                {subtitle}
+              </p>
+            )}
+          </div>
           <span
             className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
             style={{ background: 'rgba(255,255,255,0.45)', color: palette.text }}

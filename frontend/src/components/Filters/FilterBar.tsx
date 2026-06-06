@@ -121,7 +121,7 @@ export default function FilterBar({ filters, onChange, activities }: FilterBarPr
             className="flex rounded-xl overflow-hidden"
             style={{ border: '1px solid rgba(245,166,35,0.35)', background: 'rgba(255,255,255,0.6)' }}
           >
-            {([['workFront', 'Frente'], ['discipline', 'Disciplina'], ['status', 'Estado']] as const).map(([val, label]) => (
+            {([['endDate', 'Fecha fin'], ['workFront', 'Frente'], ['discipline', 'Disciplina'], ['status', 'Estado']] as const).map(([val, label]) => (
               <button
                 key={val}
                 onClick={() => onChange({ ...filters, groupBy: val })}

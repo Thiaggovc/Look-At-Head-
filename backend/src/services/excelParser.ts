@@ -3,146 +3,171 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { Activity, ParsedExcelData } from '../types';
 
-interface CellAddress {
-  r: number;
-  c: number;
-}
-
-interface MergeRange {
-  s: CellAddress;
-  e: CellAddress;
-}
-
-function createFingerprint(workFront: string, generalTitle: string, description: string): string {
-  const raw = `${workFront}|${generalTitle}|${description}`.toLowerCase().trim();
+function fingerprint(workFront: string, title: string, desc: string): string {
+  const raw = `${workFront}|${title}|${desc}`.toLowerCase().trim();
   return crypto.createHash('md5').update(raw).digest('hex');
 }
 
-function normalizeDateFromExcel(excelDate: number | string | Date): string | null {
-  try {
-    if (typeof excelDate === 'number') {
-      const date = XLSX.SSF.parse_date_code(excelDate);
-      if (date) {
-        const y = date.y;
-        const m = String(date.m).padStart(2, '0');
-        const d = String(date.d).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-      }
-    } else if (excelDate instanceof Date) {
-      return excelDate.toISOString().split('T')[0];
-    } else if (typeof excelDate === 'string') {
-      const parsed = new Date(excelDate);
-      if (!isNaN(parsed.getTime())) {
-        return parsed.toISOString().split('T')[0];
-      }
+function cell(sheet: XLSX.WorkSheet, r: number, c: number): string {
+  const addr = XLSX.utils.encode_cell({ r, c });
+  const cel = sheet[addr];
+  if (!cel || cel.v === undefined || cel.v === null) return '';
+  return String(cel.w ?? cel.v).trim();
+}
+
+function cellRaw(sheet: XLSX.WorkSheet, r: number, c: number): XLSX.CellObject | undefined {
+  return sheet[XLSX.utils.encode_cell({ r, c })];
+}
+
+function getMerged(sheet: XLSX.WorkSheet, r: number, c: number, merges: XLSX.Range[]): string {
+  for (const m of merges) {
+    if (r >= m.s.r && r <= m.e.r && c >= m.s.c && c <= m.e.c) {
+      return cell(sheet, m.s.r, m.s.c);
     }
-  } catch {
-    // ignore
   }
-  return null;
+  return cell(sheet, r, c);
 }
 
-function getCellValue(sheet: XLSX.WorkSheet, row: number, col: number): string {
-  const addr = XLSX.utils.encode_cell({ r: row, c: col });
-  const cell = sheet[addr];
-  if (!cell) return '';
-  if (cell.t === 'n' && cell.v !== undefined) {
-    // Could be a date
-    if (cell.z && (cell.z.includes('yy') || cell.z.includes('mm') || cell.z.includes('dd'))) {
-      return normalizeDateFromExcel(cell.v) || String(cell.v);
-    }
-    return String(cell.v);
-  }
-  if (cell.v === undefined || cell.v === null) return '';
-  return String(cell.v).trim();
+function isX(sheet: XLSX.WorkSheet, r: number, c: number): boolean {
+  const v = cell(sheet, r, c).toLowerCase();
+  return v === 'x' || v === '✓' || v === '1';
 }
 
-function getRawCellValue(sheet: XLSX.WorkSheet, row: number, col: number): XLSX.CellObject | undefined {
-  const addr = XLSX.utils.encode_cell({ r: row, c: col });
-  return sheet[addr];
-}
+const MONTH_MAP: Record<string, number> = {
+  jan:1, january:1, ene:1, enero:1,
+  feb:2, february:2, febrero:2,
+  mar:3, march:3, marzo:3,
+  apr:4, april:4, abr:4, abril:4,
+  may:5, mayo:5,
+  jun:6, june:6, junio:6,
+  jul:7, july:7, julio:7,
+  aug:8, august:8, ago:8, agosto:8,
+  sep:9, september:9, septiembre:9,
+  oct:10, october:10, octubre:10,
+  nov:11, november:11, noviembre:11,
+  dec:12, december:12, dic:12, diciembre:12,
+};
 
-function getMergedCellValue(
+const DAY_NAMES = new Set(['sun','mon','tue','wed','thu','fri','sat',
+  'lun','mar','mié','mie','jue','vie','sab','sáb','dom',
+  'lunes','martes','miercoles','miércoles','jueves','viernes','sabado','sábado','domingo',
+  'sunday','monday','tuesday','wednesday','thursday','friday','saturday']);
+
+/**
+ * Build a column→ISO-date map from the Excel header rows.
+ *
+ * Layout found in the target file:
+ *   rowMonth  : MAY   <blank>  JUN  <blank>  JUN  ...   (month name, may span merged cells)
+ *   rowDay    : 31  1  2  3  4  5  6  7  8  ...          (day numbers)
+ *   rowDayName: SUN MON TUE WED THU FRI SAT SUN ...      (abbreviated day names)
+ *
+ * The function finds these three rows automatically and returns
+ * a Map<colIndex, 'YYYY-MM-DD'>.
+ */
+function buildColDateMap(
   sheet: XLSX.WorkSheet,
-  row: number,
-  col: number,
-  merges: MergeRange[]
-): string {
-  // Check if this cell is part of a merge, and if so return the top-left value
-  for (const merge of merges) {
-    if (
-      row >= merge.s.r &&
-      row <= merge.e.r &&
-      col >= merge.s.c &&
-      col <= merge.e.c
-    ) {
-      return getCellValue(sheet, merge.s.r, merge.s.c);
+  range: XLSX.Range,
+  dataStartCol: number,
+): { colDateMap: Map<number, string>; dayColumns: number[]; dayNameRow: number; year: number } {
+  const maxScanRow = Math.min(range.e.r, 25);
+  const maxCol = range.e.c;
+
+  // 1. Find the row that contains abbreviated day names (SUN/MON/... or LUN/MAR/...)
+  let dayNameRow = -1;
+  for (let r = 0; r <= maxScanRow; r++) {
+    let matches = 0;
+    for (let c = dataStartCol; c <= maxCol; c++) {
+      const v = cell(sheet, r, c).toLowerCase();
+      if (DAY_NAMES.has(v)) matches++;
     }
+    if (matches >= 3) { dayNameRow = r; break; }
   }
-  return getCellValue(sheet, row, col);
-}
 
-function isXMarked(sheet: XLSX.WorkSheet, row: number, col: number): boolean {
-  const val = getCellValue(sheet, row, col).toLowerCase();
-  return val === 'x' || val === 'x' || val === '✓' || val === '1';
-}
+  if (dayNameRow === -1) {
+    // Fallback: no day name row found
+    return { colDateMap: new Map(), dayColumns: [], dayNameRow: -1, year: new Date().getFullYear() };
+  }
 
-function detectDayColumns(
-  sheet: XLSX.WorkSheet,
-  headerRow: number,
-  startCol: number,
-  endCol: number
-): { col: number; date: string | null; dayName: string }[] {
-  const dayColumns: { col: number; date: string | null; dayName: string }[] = [];
+  // 2. The row just above dayNameRow should have day numbers
+  const dayNumRow = dayNameRow - 1;
 
-  const DAY_NAMES = ['lun', 'mar', 'mié', 'mie', 'jue', 'vie', 'sáb', 'sab', 'dom',
-    'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
-    'lunes', 'martes', 'miercoles', 'miércoles', 'jueves', 'viernes', 'sabado', 'sábado', 'domingo'];
-
-  for (let col = startCol; col <= endCol; col++) {
-    // Check current row and the row above for day/date headers
-    const val = getCellValue(sheet, headerRow, col).toLowerCase().trim();
-    const valAbove = headerRow > 0 ? getCellValue(sheet, headerRow - 1, col).toLowerCase().trim() : '';
-
-    const isDay = DAY_NAMES.some(d => val.startsWith(d)) || DAY_NAMES.some(d => valAbove.startsWith(d));
-
-    // Also check if there's a date in adjacent rows
-    let dateStr: string | null = null;
-    const rawCell = getRawCellValue(sheet, headerRow, col);
-    if (rawCell && rawCell.t === 'n' && rawCell.z) {
-      dateStr = normalizeDateFromExcel(rawCell.v as number);
+  // 3. Month names are in one of the rows above dayNumRow
+  //    Scan up to 3 rows above to find it.
+  let monthRow = -1;
+  for (let offset = 1; offset <= 3; offset++) {
+    const r = dayNameRow - offset;
+    if (r < 0) break;
+    for (let c = dataStartCol; c <= maxCol; c++) {
+      const v = cell(sheet, r, c).toLowerCase().substring(0, 3);
+      if (MONTH_MAP[v]) { monthRow = r; break; }
     }
+    if (monthRow !== -1) break;
+  }
 
-    if (isDay || dateStr) {
-      dayColumns.push({ col, date: dateStr, dayName: val || valAbove });
+  // 4. Determine year — look anywhere in top 10 rows for a 4-digit year
+  let year = new Date().getFullYear();
+  outer: for (let r = 0; r <= Math.min(range.e.r, 10); r++) {
+    for (let c = 0; c <= maxCol; c++) {
+      const v = cell(sheet, r, c);
+      const m = v.match(/\b(20\d{2})\b/);
+      if (m) { year = parseInt(m[1]); break outer; }
     }
   }
 
-  return dayColumns;
+  // 5. Build column → date map
+  //    Track current month by scanning monthRow left-to-right.
+  const colDateMap = new Map<number, string>();
+  const dayColumns: number[] = [];
+
+  let currentMonth = 0;
+
+  // Determine which columns are actually day columns (have a day name in dayNameRow)
+  const dayColSet = new Set<number>();
+  for (let c = dataStartCol; c <= maxCol; c++) {
+    const v = cell(sheet, dayNameRow, c).toLowerCase();
+    if (DAY_NAMES.has(v)) dayColSet.add(c);
+  }
+
+  for (let c = dataStartCol; c <= maxCol; c++) {
+    // Update current month if this column has a month name
+    if (monthRow >= 0) {
+      const mv = cell(sheet, monthRow, c).toLowerCase().substring(0, 3);
+      if (MONTH_MAP[mv]) currentMonth = MONTH_MAP[mv];
+    }
+
+    if (!dayColSet.has(c)) continue;
+    dayColumns.push(c);
+
+    // Get day number from dayNumRow
+    const dayStr = cell(sheet, dayNumRow, c);
+    const dayNum = parseInt(dayStr, 10);
+    if (isNaN(dayNum) || dayNum < 1 || dayNum > 31 || currentMonth === 0) continue;
+
+    // Handle year rollover: if month resets (e.g. DEC→JAN) increment year
+    // Simple heuristic: if this month < previous month in map and not first column
+    const mm = String(currentMonth).padStart(2, '0');
+    const dd = String(dayNum).padStart(2, '0');
+    colDateMap.set(c, `${year}-${mm}-${dd}`);
+  }
+
+  return { colDateMap, dayColumns, dayNameRow, year };
 }
 
 function findWeekLabel(sheet: XLSX.WorkSheet, range: XLSX.Range): string {
-  const maxRow = Math.min(range.e.r, 10);
-  for (let r = 0; r <= maxRow; r++) {
+  for (let r = 0; r <= Math.min(range.e.r, 10); r++) {
     for (let c = 0; c <= range.e.c; c++) {
-      const val = getCellValue(sheet, r, c);
-      // Look for week-related text
-      if (/semana|week|wk\s*\d/i.test(val)) {
-        return val.substring(0, 50);
+      const v = cell(sheet, r, c);
+      if (/week|semana|look\s*ahead/i.test(v) && v.length > 5) {
+        return v.substring(0, 80);
       }
     }
   }
-
-  // Try to find a date range like "dd/mm - dd/mm"
-  for (let r = 0; r <= maxRow; r++) {
+  for (let r = 0; r <= Math.min(range.e.r, 10); r++) {
     for (let c = 0; c <= range.e.c; c++) {
-      const val = getCellValue(sheet, r, c);
-      if (/\d{1,2}[\/-]\d{1,2}/.test(val) && val.length < 30) {
-        return val;
-      }
+      const v = cell(sheet, r, c);
+      if (/\d{1,2}[\/-]\d{1,2}/.test(v) && v.length < 40) return v;
     }
   }
-
   return `Upload ${new Date().toLocaleDateString()}`;
 }
 
@@ -150,7 +175,7 @@ export function parseExcelFile(
   buffer: Buffer,
   discipline: string,
   filename: string,
-  snapshotId: string
+  snapshotId: string,
 ): ParsedExcelData {
   const workbook = XLSX.read(buffer, {
     type: 'buffer',
@@ -160,181 +185,86 @@ export function parseExcelFile(
     sheetStubs: true,
   });
 
-  const activities: Activity[] = [];
+  const allActivities: Activity[] = [];
+  let weekLabel = `Upload ${new Date().toLocaleDateString()}`;
 
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName];
     if (!sheet || !sheet['!ref']) continue;
 
     const range = XLSX.utils.decode_range(sheet['!ref']);
-    const merges: MergeRange[] = sheet['!merges'] || [];
+    const merges: XLSX.Range[] = (sheet['!merges'] as XLSX.Range[]) || [];
 
-    const weekLabel = findWeekLabel(sheet, range);
+    weekLabel = findWeekLabel(sheet, range);
 
-    // We'll scan the sheet to find the data table structure
-    // Looking for:
-    //   Col B (index 1): Frente de obra
-    //   Col D (index 3): Activity description
-    //   Col E (index 4): Resources
-    //   Col F+ (index 5+): Day columns with X marks
+    // Data starts at column D (index 3); schedule starts at column F (index 5)
+    const DATA_COL_DESC = 3;  // D
+    const DATA_COL_RES  = 4;  // E
+    const DATA_COL_SCHED_START = 5; // F
 
-    // Find header row - look for row containing day names or "lunes"/"lun" etc.
-    let headerRow = -1;
-    let dayStartCol = 5; // Default: column F (index 5)
+    const { colDateMap, dayColumns, dayNameRow } = buildColDateMap(
+      sheet, range, DATA_COL_SCHED_START,
+    );
 
-    const DAY_PATTERNS = /^(lun|mar|mié|mie|jue|vie|sáb|sab|dom|mon|tue|wed|thu|fri|sat|sun)/i;
+    if (dayNameRow === -1) continue; // couldn't parse this sheet
 
-    for (let r = 0; r <= Math.min(range.e.r, 20); r++) {
-      let dayCount = 0;
-      for (let c = 3; c <= range.e.c; c++) {
-        const val = getCellValue(sheet, r, c);
-        if (DAY_PATTERNS.test(val.trim())) {
-          dayCount++;
-          if (dayCount === 1) dayStartCol = c;
-        }
-      }
-      if (dayCount >= 3) {
-        headerRow = r;
-        break;
-      }
-    }
+    const dataStartRow = dayNameRow + 1;
 
-    // Build date map: column -> date string
-    // Try to find dates from above or in the header row
-    const colDateMap: Map<number, string> = new Map();
-
-    if (headerRow >= 0) {
-      // Look for dates in rows near header
-      for (let lookRow = Math.max(0, headerRow - 3); lookRow <= headerRow + 1; lookRow++) {
-        for (let c = dayStartCol; c <= range.e.c; c++) {
-          const cell = getRawCellValue(sheet, lookRow, c);
-          if (cell && cell.t === 'n' && cell.v) {
-            const dateStr = normalizeDateFromExcel(cell.v as number);
-            if (dateStr) {
-              colDateMap.set(c, dateStr);
-            }
-          } else {
-            const val = getCellValue(sheet, lookRow, c);
-            // Try parsing as date string
-            const match = val.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
-            if (match) {
-              const day = match[1].padStart(2, '0');
-              const month = match[2].padStart(2, '0');
-              const year = match[3] ? (match[3].length === 2 ? `20${match[3]}` : match[3]) : new Date().getFullYear().toString();
-              colDateMap.set(c, `${year}-${month}-${day}`);
-            }
-          }
-        }
-      }
-    }
-
-    // Determine which columns are "day" columns
-    // If we found day headers, use those columns
-    // Otherwise treat columns F+ as potential day columns
-    let dayColumns: number[] = [];
-
-    if (headerRow >= 0) {
-      for (let c = dayStartCol; c <= range.e.c; c++) {
-        const val = getCellValue(sheet, headerRow, c);
-        if (DAY_PATTERNS.test(val.trim()) || colDateMap.has(c)) {
-          dayColumns.push(c);
-        }
-      }
-      // If we found the header but not many day columns, expand
-      if (dayColumns.length === 0) {
-        for (let c = dayStartCol; c <= Math.min(dayStartCol + 10, range.e.c); c++) {
-          dayColumns.push(c);
-        }
-      }
-    } else {
-      // No header found, try from column F onwards
-      for (let c = 5; c <= Math.min(range.e.c, 15); c++) {
-        dayColumns.push(c);
-      }
-    }
-
-    // Now scan data rows
     let currentWorkFront = '';
     let currentGeneralTitle = '';
-    const dataStartRow = headerRow >= 0 ? headerRow + 1 : 1;
 
     for (let r = dataStartRow; r <= range.e.r; r++) {
-      // Check column B for work front (Frente de obra)
-      // This could be in a merged cell
-      const colBVal = getMergedCellValue(sheet, r, 1, merges).trim();
-      const colDVal = getCellValue(sheet, r, 3).trim();
-      const colEVal = getCellValue(sheet, r, 4).trim();
+      const colB = getMerged(sheet, r, 1, merges).trim();
+      const colD = cell(sheet, r, DATA_COL_DESC).trim();
+      const colE = cell(sheet, r, DATA_COL_RES).trim();
 
-      // Update work front if column B has content
-      if (colBVal && colBVal.length > 0 && colBVal.length < 100) {
-        // Filter out obvious non-data values
-        if (!/^\d+$/.test(colBVal) && !/^(frente|front|obra|edificio|bloque|torre|sector|zona|area|área)/i.test(colBVal) || colBVal.length > 3) {
-          currentWorkFront = colBVal;
+      // Update work front when column B has meaningful content
+      if (colB && colB.length > 0 && colB.length < 120 && !/^\d+$/.test(colB)) {
+        currentWorkFront = colB;
+      }
+
+      if (!colD) continue;
+
+      // Collect scheduled days — ONLY from confirmed day columns
+      const scheduledDays: string[] = [];
+      for (const c of dayColumns) {
+        if (isX(sheet, r, c)) {
+          const dateStr = colDateMap.get(c);
+          scheduledDays.push(dateStr ?? `col_${c}`);
         }
       }
 
-      // Skip rows with no activity description
-      if (!colDVal || colDVal.length === 0) continue;
+      const hasX = scheduledDays.length > 0;
+      const hasResources = colE.length > 0;
 
-      // Detect if this is a general title row or an activity row
-      // General title rows typically: have no X in day columns and may be bold/styled
-      // Or: description is short, all caps, or followed by sub-activities
-      const hasXInDayColumns = dayColumns.some(c => isXMarked(sheet, r, c));
-      const hasResources = colEVal.length > 0;
-
-      // Determine if this is a section title/general title
-      const looksLikeTitle = (
-        !hasXInDayColumns &&
-        !hasResources &&
-        (colDVal === colDVal.toUpperCase() || colDVal.length < 40)
-      );
-
-      if (looksLikeTitle && !hasXInDayColumns && !hasResources) {
-        currentGeneralTitle = colDVal;
+      // Detect section title rows: all-caps, no X, no resources
+      const looksLikeTitle = !hasX && !hasResources && colD === colD.toUpperCase() && colD.length < 60;
+      if (looksLikeTitle) {
+        currentGeneralTitle = colD;
         continue;
       }
 
-      // This is an actual activity row
-      // Collect scheduled days
-      const scheduledDays: string[] = [];
-      for (const col of dayColumns) {
-        if (isXMarked(sheet, r, col)) {
-          const dateStr = colDateMap.get(col);
-          if (dateStr) {
-            scheduledDays.push(dateStr);
-          } else {
-            // Use column index as day identifier if no date
-            scheduledDays.push(`col_${col}`);
-          }
-        }
-      }
+      // Status
+      let status: 'active' | 'blocked' | 'pending';
+      if (hasX) status = 'active';
+      else if (hasResources) status = 'blocked';
+      else status = 'pending';
 
-      // Determine status
-      let status: 'active' | 'blocked' | 'pending' = 'pending';
-      if (scheduledDays.length > 0) {
-        status = 'active';
-      } else if (hasResources) {
-        // Has resources but no schedule = blocked
-        status = 'blocked';
-      }
-
-      // Compute start/end dates
-      const realDates = scheduledDays.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
-      realDates.sort();
-      const startDate = realDates.length > 0 ? realDates[0] : null;
-      const endDate = realDates.length > 0 ? realDates[realDates.length - 1] : null;
+      const realDates = scheduledDays
+        .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))
+        .sort();
+      const startDate = realDates[0] ?? null;
+      const endDate   = realDates[realDates.length - 1] ?? null;
       const durationDays = realDates.length;
 
-      const workFrontToUse = currentWorkFront || 'General';
+      const wf = currentWorkFront || 'General';
 
-      const fingerprint = createFingerprint(workFrontToUse, currentGeneralTitle, colDVal);
-
-      const activity: Activity = {
+      allActivities.push({
         id: uuidv4(),
-        workFront: workFrontToUse,
+        workFront: wf,
         generalTitle: currentGeneralTitle,
-        description: colDVal,
-        resources: colEVal,
+        description: colD,
+        resources: colE,
         scheduledDays,
         startDate,
         endDate,
@@ -343,20 +273,10 @@ export function parseExcelFile(
         status,
         sourceFile: filename,
         snapshotId,
-        fingerprint,
-      };
-
-      activities.push(activity);
+        fingerprint: fingerprint(wf, currentGeneralTitle, colD),
+      });
     }
   }
 
-  // Determine week label from activities or sheet
-  let weekLabel = 'Unknown Week';
-  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (firstSheet && firstSheet['!ref']) {
-    const range = XLSX.utils.decode_range(firstSheet['!ref']);
-    weekLabel = findWeekLabel(firstSheet, range);
-  }
-
-  return { activities, weekLabel };
+  return { activities: allActivities, weekLabel };
 }

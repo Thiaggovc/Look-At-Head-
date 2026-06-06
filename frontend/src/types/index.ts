@@ -57,7 +57,7 @@ export interface Filters {
   workFront?: string;
   status?: string;
   search?: string;
-  groupBy: 'workFront' | 'discipline' | 'status';
+  groupBy: 'endDate' | 'workFront' | 'discipline' | 'status';
 }
 
 export const DISCIPLINE_COLORS: Record<string, { bg: string; text: string; cardBg: string; cardBgDark: string }> = {

@@ -10,7 +10,7 @@ import {
   closestCorners,
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { Activity, Filters, getDisciplineColor, STATUS_CONFIG } from '../../types';
+import { Activity, Filters, STATUS_CONFIG } from '../../types';
 import WorkFrontColumn from './WorkFrontColumn';
 import ActivityCard from './ActivityCard';
 import FilterBar from '../Filters/FilterBar';
@@ -19,10 +19,22 @@ interface BoardProps {
   activities: Activity[];
 }
 
-const COLUMN_COLORS = [
-  '#6366f1', '#8b5cf6', '#ec4899', '#f97316',
-  '#10b981', '#06b6d4', '#f59e0b', '#84cc16',
-];
+const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function formatColumnTitle(dateStr: string): { main: string; sub: string; dayIndex: number } {
+  // dateStr = 'YYYY-MM-DD'
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return { main: dateStr, sub: '', dayIndex: 0 };
+  }
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return {
+    main: `${String(d).padStart(2, '0')} ${MONTH_LABELS[m - 1]}`,
+    sub: `${DAY_LABELS[date.getDay()]} ${y}`,
+    dayIndex: date.getDay(),
+  };
+}
 
 function filterActivities(activities: Activity[], filters: Filters): Activity[] {
   return activities.filter(a => {
@@ -42,28 +54,47 @@ function filterActivities(activities: Activity[], filters: Filters): Activity[] 
   });
 }
 
-function groupActivities(
-  activities: Activity[],
-  groupBy: Filters['groupBy']
-): Map<string, Activity[]> {
+function groupActivities(activities: Activity[], groupBy: Filters['groupBy']): Map<string, Activity[]> {
   const map = new Map<string, Activity[]>();
+
   for (const a of activities) {
-    const key =
-      groupBy === 'workFront' ? a.workFront
-      : groupBy === 'discipline' ? a.discipline
-      : STATUS_CONFIG[a.status].label;
+    let key: string;
+
+    if (groupBy === 'endDate') {
+      // Group by end date; activities without a date go to 'Sin fecha'
+      key = a.endDate ?? 'Sin fecha';
+    } else if (groupBy === 'workFront') {
+      key = a.workFront;
+    } else if (groupBy === 'discipline') {
+      key = a.discipline;
+    } else {
+      key = STATUS_CONFIG[a.status]?.label ?? a.status;
+    }
+
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(a);
   }
+
+  // Sort date-based columns chronologically
+  if (groupBy === 'endDate') {
+    const sorted = new Map(
+      [...map.entries()].sort(([a], [b]) => {
+        if (a === 'Sin fecha') return 1;
+        if (b === 'Sin fecha') return -1;
+        return a.localeCompare(b);
+      })
+    );
+    return sorted;
+  }
+
   return map;
 }
 
 export default function Board({ activities }: BoardProps) {
-  const [filters, setFilters] = useState<Filters>({ groupBy: 'workFront' });
+  const [filters, setFilters] = useState<Filters>({ groupBy: 'endDate' });
   const [localActivities, setLocalActivities] = useState<Activity[]>(activities);
   const [activeActivity, setActiveActivity] = useState<Activity | null>(null);
 
-  // Sync when activities prop changes
   if (activities !== localActivities && activities.length !== localActivities.length) {
     setLocalActivities(activities);
   }
@@ -73,19 +104,17 @@ export default function Board({ activities }: BoardProps) {
   );
 
   const filtered = filterActivities(localActivities, filters);
-  const grouped = groupActivities(filtered, filters.groupBy);
-  const columns = [...grouped.entries()];
+  const grouped  = groupActivities(filtered, filters.groupBy);
+  const columns  = [...grouped.entries()];
 
   const handleDragStart = (event: DragStartEvent) => {
-    const activity = localActivities.find(a => a.id === event.active.id);
-    setActiveActivity(activity || null);
+    setActiveActivity(localActivities.find(a => a.id === event.active.id) ?? null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveActivity(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-
     setLocalActivities(prev => {
       const oldIndex = prev.findIndex(a => a.id === active.id);
       const newIndex = prev.findIndex(a => a.id === over.id);
@@ -94,11 +123,16 @@ export default function Board({ activities }: BoardProps) {
     });
   };
 
+  const groupLabel = filters.groupBy === 'endDate' ? 'días'
+    : filters.groupBy === 'workFront' ? 'frentes'
+    : filters.groupBy === 'discipline' ? 'disciplinas'
+    : 'estados';
+
   return (
     <div className="flex flex-col h-full">
       <FilterBar filters={filters} onChange={setFilters} activities={localActivities} />
 
-      {/* Summary stats bar */}
+      {/* Stats bar */}
       <div
         className="px-5 py-2.5 flex items-center gap-3 text-xs font-medium border-b"
         style={{
@@ -109,7 +143,7 @@ export default function Board({ activities }: BoardProps) {
       >
         <span className="text-gray-500">{filtered.length} actividades</span>
         <span className="text-gray-300">·</span>
-        <span className="text-gray-500">{columns.length} {filters.groupBy === 'workFront' ? 'frentes' : filters.groupBy === 'discipline' ? 'disciplinas' : 'estados'}</span>
+        <span className="text-gray-500">{columns.length} {groupLabel}</span>
         <span className="text-gray-300">·</span>
         <span style={{ color: '#28A745' }}>{filtered.filter(a => a.status === 'active').length} activas</span>
         <span className="text-gray-300">·</span>
@@ -127,15 +161,21 @@ export default function Board({ activities }: BoardProps) {
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-4 p-5 h-full min-h-0 items-start">
-            {columns.map(([groupKey, groupActivities], index) => (
-              <WorkFrontColumn
-                key={groupKey}
-                id={groupKey}
-                title={groupKey}
-                activities={groupActivities}
-                colorIndex={index}
-              />
-            ))}
+            {columns.map(([key, acts], index) => {
+              const fmt = filters.groupBy === 'endDate' && /^\d{4}-\d{2}-\d{2}$/.test(key)
+                ? formatColumnTitle(key)
+                : null;
+              return (
+                <WorkFrontColumn
+                  key={key}
+                  id={key}
+                  title={fmt ? fmt.main : key}
+                  subtitle={fmt ? fmt.sub : undefined}
+                  activities={acts}
+                  colorIndex={fmt ? fmt.dayIndex : index}
+                />
+              );
+            })}
             {columns.length === 0 && (
               <div className="flex-1 flex items-center justify-center">
                 <div
