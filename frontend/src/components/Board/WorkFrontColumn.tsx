@@ -9,91 +9,138 @@ interface WorkFrontColumnProps {
   id: string;
   title: string;
   activities: Activity[];
-  accentColor?: string;
+  colorIndex?: number;
 }
 
-export default function WorkFrontColumn({ id, title, activities, accentColor }: WorkFrontColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+const COLUMN_PALETTES = [
+  { base: '#AFC0FF', surface: 'rgba(175,192,255,0.82)', accent: '#7E92F8', text: '#3A4FB5' },
+  { base: '#F4D34F', surface: 'rgba(244,211,79,0.82)',  accent: '#D7A700', text: '#7A5800' },
+  { base: '#A86CF2', surface: 'rgba(168,108,242,0.82)', accent: '#7D3FE5', text: '#4A1FA0' },
+  { base: '#50D162', surface: 'rgba(80,209,98,0.82)',   accent: '#28A745', text: '#145C24' },
+  { base: '#F57D7D', surface: 'rgba(245,125,125,0.82)', accent: '#D94B4B', text: '#831414' },
+  { base: '#67D7F5', surface: 'rgba(103,215,245,0.82)', accent: '#0EA5C9', text: '#0B5E7A' },
+];
 
-  const activeCount = activities.filter(a => a.status === 'active').length;
+export default function WorkFrontColumn({ id, title, activities, colorIndex = 0 }: WorkFrontColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  const palette = COLUMN_PALETTES[colorIndex % COLUMN_PALETTES.length];
+
+  const activeCount  = activities.filter(a => a.status === 'active').length;
   const blockedCount = activities.filter(a => a.status === 'blocked').length;
   const pendingCount = activities.filter(a => a.status === 'pending').length;
 
   return (
-    <div className="flex flex-col min-w-[280px] max-w-[320px] w-[300px] flex-shrink-0">
-      {/* Column header */}
-      <div className="sticky top-0 z-10 bg-gray-900 border-b border-gray-800 px-3 py-3 rounded-t-xl">
-        <div className="flex items-center gap-2 mb-2">
-          <Building2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <h3 className="font-semibold text-gray-100 text-sm flex-1 min-w-0 truncate" title={title}>
+    <div
+      className="kanban-column flex-shrink-0"
+      style={{ width: 300, minWidth: 280, maxWidth: 320 }}
+    >
+      {/* Header */}
+      <div
+        className="column-header"
+        style={{ background: palette.surface }}
+      >
+        {/* Top highlight */}
+        <div
+          className="absolute top-0 left-0 right-0 h-[12%] rounded-t-[20px]"
+          style={{
+            background: 'linear-gradient(180deg,rgba(255,255,255,0.22) 0%,transparent 100%)',
+            pointerEvents: 'none',
+          }}
+        />
+
+        <div className="flex items-center gap-2 mb-2 relative">
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(255,255,255,0.35)' }}
+          >
+            <Building2 className="w-3.5 h-3.5" style={{ color: palette.text }} />
+          </div>
+          <h3
+            className="font-semibold text-sm flex-1 min-w-0 truncate"
+            style={{ color: palette.text }}
+            title={title}
+          >
             {title}
           </h3>
-          <span className="bg-gray-700 text-gray-300 text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0">
+          <span
+            className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+            style={{ background: 'rgba(255,255,255,0.45)', color: palette.text }}
+          >
             {activities.length}
           </span>
         </div>
-        {/* Status mini-bar */}
-        <div className="flex items-center gap-2 text-xs text-gray-500">
+
+        {/* Status mini indicators */}
+        <div className="flex items-center gap-3 text-xs relative">
           {activeCount > 0 && (
-            <span className="flex items-center gap-0.5 text-green-400">
-              <CheckCircle className="w-3 h-3" />{activeCount}
+            <span className="flex items-center gap-1 font-medium" style={{ color: '#166534' }}>
+              <CheckCircle className="w-3 h-3" />{activeCount} activas
             </span>
           )}
           {blockedCount > 0 && (
-            <span className="flex items-center gap-0.5 text-red-400">
-              <AlertCircle className="w-3 h-3" />{blockedCount}
+            <span className="flex items-center gap-1 font-medium" style={{ color: '#991B1B' }}>
+              <AlertCircle className="w-3 h-3" />{blockedCount} bloqueadas
             </span>
           )}
           {pendingCount > 0 && (
-            <span className="flex items-center gap-0.5 text-yellow-400">
-              <Clock className="w-3 h-3" />{pendingCount}
+            <span className="flex items-center gap-1 font-medium" style={{ color: '#92400E' }}>
+              <Clock className="w-3 h-3" />{pendingCount} pendientes
             </span>
           )}
         </div>
+
         {/* Progress bar */}
         {activities.length > 0 && (
-          <div className="mt-2 h-1 bg-gray-700 rounded-full overflow-hidden flex">
+          <div className="mt-2.5 h-1.5 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.3)' }}>
             <div
-              className="bg-green-500 h-full transition-all"
-              style={{ width: `${(activeCount / activities.length) * 100}%` }}
+              className="h-full transition-all duration-300"
+              style={{ width: `${(activeCount / activities.length) * 100}%`, background: '#28A745' }}
             />
             <div
-              className="bg-yellow-500 h-full transition-all"
-              style={{ width: `${(pendingCount / activities.length) * 100}%` }}
+              className="h-full transition-all duration-300"
+              style={{ width: `${(pendingCount / activities.length) * 100}%`, background: '#F59E0B' }}
             />
             <div
-              className="bg-red-500 h-full transition-all"
-              style={{ width: `${(blockedCount / activities.length) * 100}%` }}
+              className="h-full transition-all duration-300"
+              style={{ width: `${(blockedCount / activities.length) * 100}%`, background: '#EF4444' }}
             />
           </div>
-        )}
-        {accentColor && (
-          <div
-            className="absolute top-0 left-0 right-0 h-1 rounded-t-xl"
-            style={{ background: accentColor }}
-          />
         )}
       </div>
 
       {/* Cards area */}
       <div
         ref={setNodeRef}
-        className={clsx(
-          'flex-1 p-2 space-y-2 overflow-y-auto min-h-[100px] rounded-b-xl transition-colors duration-150',
-          isOver ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/40' : 'bg-gray-900/50'
-        )}
+        className="column-body transition-colors duration-150"
+        style={{
+          background: isOver
+            ? `rgba(${hexToRgb(palette.base)},0.55)`
+            : `rgba(${hexToRgb(palette.base)},0.40)`,
+          outline: isOver ? `2px solid ${palette.accent}` : 'none',
+          outlineOffset: '-2px',
+        }}
       >
         <SortableContext items={activities.map(a => a.id)} strategy={verticalListSortingStrategy}>
           {activities.map(activity => (
-            <ActivityCard key={activity.id} activity={activity} />
+            <ActivityCard key={activity.id} activity={activity} accentColor={palette.accent} />
           ))}
         </SortableContext>
         {activities.length === 0 && (
-          <div className="flex items-center justify-center h-20 text-gray-600 text-sm">
+          <div
+            className="flex items-center justify-center h-20 text-sm font-medium rounded-xl"
+            style={{ color: palette.text, background: 'rgba(255,255,255,0.2)' }}
+          >
             Sin actividades
           </div>
         )}
       </div>
     </div>
   );
+}
+
+function hexToRgb(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `${r},${g},${b}`;
 }

@@ -98,17 +98,24 @@ export default function Board({ activities }: BoardProps) {
     <div className="flex flex-col h-full">
       <FilterBar filters={filters} onChange={setFilters} activities={localActivities} />
 
-      {/* Summary stats */}
-      <div className="px-4 py-2 bg-gray-900/80 border-b border-gray-800 flex items-center gap-4 text-xs text-gray-400">
-        <span>{filtered.length} actividades</span>
-        <span>·</span>
-        <span>{columns.length} {filters.groupBy === 'workFront' ? 'frentes' : filters.groupBy === 'discipline' ? 'disciplinas' : 'estados'}</span>
-        <span>·</span>
-        <span className="text-green-400">{filtered.filter(a => a.status === 'active').length} activas</span>
-        <span>·</span>
-        <span className="text-red-400">{filtered.filter(a => a.status === 'blocked').length} bloqueadas</span>
-        <span>·</span>
-        <span className="text-yellow-400">{filtered.filter(a => a.status === 'pending').length} pendientes</span>
+      {/* Summary stats bar */}
+      <div
+        className="px-5 py-2.5 flex items-center gap-3 text-xs font-medium border-b"
+        style={{
+          background: 'rgba(255,255,255,0.7)',
+          backdropFilter: 'blur(8px)',
+          borderColor: 'rgba(169,180,255,0.2)',
+        }}
+      >
+        <span className="text-gray-500">{filtered.length} actividades</span>
+        <span className="text-gray-300">·</span>
+        <span className="text-gray-500">{columns.length} {filters.groupBy === 'workFront' ? 'frentes' : filters.groupBy === 'discipline' ? 'disciplinas' : 'estados'}</span>
+        <span className="text-gray-300">·</span>
+        <span style={{ color: '#28A745' }}>{filtered.filter(a => a.status === 'active').length} activas</span>
+        <span className="text-gray-300">·</span>
+        <span style={{ color: '#D94B4B' }}>{filtered.filter(a => a.status === 'blocked').length} bloqueadas</span>
+        <span className="text-gray-300">·</span>
+        <span style={{ color: '#D7A700' }}>{filtered.filter(a => a.status === 'pending').length} pendientes</span>
       </div>
 
       {/* Board */}
@@ -119,21 +126,24 @@ export default function Board({ activities }: BoardProps) {
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-4 p-4 h-full min-h-0">
+          <div className="flex gap-4 p-5 h-full min-h-0 items-start">
             {columns.map(([groupKey, groupActivities], index) => (
               <WorkFrontColumn
                 key={groupKey}
                 id={groupKey}
                 title={groupKey}
                 activities={groupActivities}
-                accentColor={COLUMN_COLORS[index % COLUMN_COLORS.length]}
+                colorIndex={index}
               />
             ))}
             {columns.length === 0 && (
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-center text-gray-500">
-                  <p className="text-lg font-medium mb-1">Sin actividades</p>
-                  <p className="text-sm">Ajusta los filtros o sube un archivo Excel</p>
+                <div
+                  className="text-center px-10 py-12 rounded-3xl"
+                  style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(169,180,255,0.2)' }}
+                >
+                  <p className="text-lg font-semibold text-gray-600 mb-1">Sin actividades</p>
+                  <p className="text-sm text-gray-400">Ajusta los filtros o sube un archivo Excel</p>
                 </div>
               </div>
             )}
@@ -141,7 +151,7 @@ export default function Board({ activities }: BoardProps) {
 
           <DragOverlay>
             {activeActivity && (
-              <div className="w-[280px] rotate-2 opacity-90">
+              <div className="w-[280px] rotate-2 opacity-90 scale-105">
                 <ActivityCard activity={activeActivity} />
               </div>
             )}
