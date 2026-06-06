@@ -32,9 +32,9 @@ export default function VersionList({
   return (
     <div className="space-y-3">
       {selectedIds.length === 2 && (
-        <div className="sticky top-0 z-10 bg-gray-900 border border-indigo-500/40 rounded-xl p-3">
+        <div className="sticky top-0 z-10 bg-gray-900 border border-amber-400/40 rounded-xl p-3">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-indigo-300 flex items-center gap-2">
+            <div className="text-sm text-amber-600 flex items-center gap-2">
               <GitCompare className="w-4 h-4" />
               2 versiones seleccionadas para comparar
             </div>
@@ -61,14 +61,14 @@ export default function VersionList({
             className={clsx(
               'relative flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all duration-150',
               isSelected
-                ? 'border-indigo-500/60 bg-indigo-500/10'
+                ? 'border-amber-500/60 bg-amber-400/10'
                 : 'border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800'
             )}
             onClick={() => onSelect(snapshot.id)}
           >
             {/* Selection indicator */}
             {isSelected && (
-              <div className="absolute top-2 right-2 w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold text-white">
+              <div className="absolute top-2 right-2 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
                 {selectionIndex + 1}
               </div>
             )}
@@ -91,7 +91,7 @@ export default function VersionList({
                   {formatDate(snapshot.uploaded_at)}
                 </span>
               </div>
-              <p className="text-xs text-indigo-400 mt-1">{snapshot.week_label}</p>
+              <p className="text-xs text-amber-500 mt-1">{snapshot.week_label}</p>
             </div>
 
             <button

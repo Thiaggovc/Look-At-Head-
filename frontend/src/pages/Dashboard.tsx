@@ -22,13 +22,13 @@ interface DashboardProps {
 }
 
 const STAT_CARDS = [
-  { key: 'total',   label: 'Total',       icon: Activity,     accent: '#7E92F8', bg: 'rgba(126,146,248,0.12)' },
+  { key: 'total',   label: 'Total',       icon: Activity,     accent: '#F5A623', bg: 'rgba(245,166,35,0.12)' },
   { key: 'active',  label: 'Activas',     icon: CheckCircle,  accent: '#28A745', bg: 'rgba(80,209,98,0.12)'   },
   { key: 'blocked', label: 'Bloqueadas',  icon: AlertCircle,  accent: '#D94B4B', bg: 'rgba(245,125,125,0.12)' },
   { key: 'pending', label: 'Pendientes',  icon: Clock,        accent: '#D7A700', bg: 'rgba(244,211,79,0.15)'  },
 ] as const;
 
-const DISC_COLORS = ['#7E92F8','#A86CF2','#50D162','#F4D34F','#F57D7D','#67D7F5'];
+const DISC_COLORS = ['#F5A623','#FF9B6A','#50D162','#F4D34F','#F57D7D','#67D7F5'];
 
 export default function Dashboard({ selectedProject, onProjectCreate, onRefresh }: DashboardProps) {
   const [snapshots, setSnapshots]       = useState<Snapshot[]>([]);
@@ -86,9 +86,9 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
         >
           <div
             className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
-            style={{ background: 'rgba(126,146,248,0.15)' }}
+            style={{ background: 'rgba(245,166,35,0.15)' }}
           >
-            <Plus className="w-8 h-8" style={{ color: '#7E92F8' }} />
+            <Plus className="w-8 h-8" style={{ color: '#F5A623' }} />
           </div>
           <h2 className="text-xl font-bold text-gray-800 mb-2">Crea tu primer proyecto</h2>
           <p className="text-gray-500 text-sm mb-6">
@@ -152,7 +152,7 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
           }}
         >
           <h2 className="text-base font-semibold text-gray-700 mb-4 flex items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4" style={{ color: '#7E92F8' }} />
+            <FileSpreadsheet className="w-4 h-4" style={{ color: '#F5A623' }} />
             Cargar archivos Excel
           </h2>
           <UploadZone
@@ -210,7 +210,7 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
           }}
         >
           <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4" style={{ color: '#7E92F8' }} />
+            <FileSpreadsheet className="w-4 h-4" style={{ color: '#F5A623' }} />
             Versiones cargadas ({snapshots.length})
           </h2>
           {snapshots.length === 0 ? (
@@ -220,7 +220,7 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
               <button
                 onClick={() => setShowUpload(true)}
                 className="text-sm mt-2 font-medium transition-colors"
-                style={{ color: '#7E92F8' }}
+                style={{ color: '#F5A623' }}
               >
                 Subir un archivo Excel
               </button>
@@ -231,7 +231,7 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
                 <div
                   key={s.id}
                   className="flex items-center gap-3 p-3 rounded-xl"
-                  style={{ background: 'rgba(126,146,248,0.07)', border: '1px solid rgba(126,146,248,0.15)' }}
+                  style={{ background: 'rgba(245,166,35,0.07)', border: '1px solid rgba(245,166,35,0.15)' }}
                 >
                   <FileSpreadsheet className="w-4 h-4 flex-shrink-0" style={{ color: '#28A745' }} />
                   <div className="flex-1 min-w-0">
@@ -256,7 +256,7 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
             }}
           >
             <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" style={{ color: '#A86CF2' }} />
+              <BarChart3 className="w-4 h-4" style={{ color: '#F5A623' }} />
               Por disciplina
             </h2>
             <div className="space-y-3">
@@ -269,7 +269,7 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
                       <span className="text-gray-600 font-medium">{discipline}</span>
                       <span className="text-gray-400 font-semibold">{count}</span>
                     </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(169,180,255,0.2)' }}>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(245,166,35,0.2)' }}>
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{ width: `${pct}%`, background: color }}
@@ -294,7 +294,7 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
             }}
           >
             <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" style={{ color: '#7E92F8' }} />
+              <BarChart3 className="w-4 h-4" style={{ color: '#F5A623' }} />
               Por frente de obra
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">

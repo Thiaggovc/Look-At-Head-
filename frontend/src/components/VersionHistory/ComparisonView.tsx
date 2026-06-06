@@ -111,7 +111,7 @@ export default function ComparisonView({ comparison }: ComparisonViewProps) {
               <p className={clsx('text-xs font-semibold mb-1', color)}>{label}</p>
               <p className="text-sm text-gray-200 font-medium truncate">{snapshot.filename}</p>
               <p className="text-xs text-gray-400 mt-1">{snapshot.discipline} · {formatDate(snapshot.uploaded_at)}</p>
-              <p className="text-xs text-indigo-400">{snapshot.week_label}</p>
+              <p className="text-xs text-amber-500">{snapshot.week_label}</p>
             </div>
           ))}
         </div>

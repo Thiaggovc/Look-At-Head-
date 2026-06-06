@@ -60,10 +60,10 @@ export default function Layout({
   const SidebarContent = () => (
     <div className="flex flex-col h-full sidebar">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-[rgba(169,180,255,0.2)]">
+      <div className="flex items-center gap-3 px-5 py-5 border-b border-[rgba(245,166,35,0.2)]">
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
-          style={{ background: 'linear-gradient(135deg,#7E92F8,#A86CF2)' }}
+          style={{ background: 'linear-gradient(135deg,#F5A623,#E07B00)' }}
         >
           <HardHat className="w-5 h-5 text-white" />
         </div>
@@ -83,12 +83,12 @@ export default function Layout({
             className={clsx(
               'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
               location.pathname === path
-                ? 'text-[#7E92F8] shadow-sm'
-                : 'hover:bg-[rgba(169,180,255,0.12)] text-gray-500 hover:text-gray-700'
+                ? 'text-[#F5A623] shadow-sm'
+                : 'hover:bg-[rgba(245,166,35,0.12)] text-gray-500 hover:text-gray-700'
             )}
             style={location.pathname === path ? {
-              background: 'rgba(126,146,248,0.12)',
-              border: '1px solid rgba(126,146,248,0.25)',
+              background: 'rgba(245,166,35,0.12)',
+              border: '1px solid rgba(245,166,35,0.25)',
             } : {}}
           >
             <Icon className="w-4 h-4 flex-shrink-0" />
@@ -122,12 +122,12 @@ export default function Layout({
                 className={clsx(
                   'w-full text-left px-3 py-2 rounded-xl text-sm transition-all duration-150 truncate',
                   selectedProject?.id === p.id
-                    ? 'text-[#7E92F8] font-medium'
-                    : 'text-gray-500 hover:bg-[rgba(169,180,255,0.1)] hover:text-gray-700'
+                    ? 'text-[#F5A623] font-medium'
+                    : 'text-gray-500 hover:bg-[rgba(245,166,35,0.1)] hover:text-gray-700'
                 )}
                 style={selectedProject?.id === p.id ? {
-                  background: 'rgba(126,146,248,0.1)',
-                  border: '1px solid rgba(126,146,248,0.2)',
+                  background: 'rgba(245,166,35,0.1)',
+                  border: '1px solid rgba(245,166,35,0.2)',
                 } : {}}
               >
                 {p.name}
@@ -153,7 +153,7 @@ export default function Layout({
                   onClick={handleCreate}
                   disabled={creating || !newProjectName.trim()}
                   className="flex-1 text-white text-xs py-1.5 rounded-lg disabled:opacity-50 transition-colors font-medium"
-                  style={{ background: '#7E92F8' }}
+                  style={{ background: '#F5A623' }}
                 >
                   {creating ? 'Creando...' : 'Crear'}
                 </button>
@@ -168,7 +168,7 @@ export default function Layout({
           ) : (
             <button
               onClick={() => setShowNewInput(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-[#7E92F8] transition-colors rounded-xl hover:bg-[rgba(126,146,248,0.08)]"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-[#F5A623] transition-colors rounded-xl hover:bg-[rgba(245,166,35,0.08)]"
             >
               <Plus className="w-3.5 h-3.5" />
               Nuevo proyecto
@@ -180,7 +180,7 @@ export default function Layout({
       {selectedProject && (
         <div
           className="mx-3 mb-4 mt-auto px-3 py-3 rounded-xl"
-          style={{ background: 'rgba(126,146,248,0.08)', border: '1px solid rgba(126,146,248,0.2)' }}
+          style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)' }}
         >
           <p className="text-xs text-gray-400 mb-0.5">Proyecto activo</p>
           <p className="text-sm text-gray-700 font-semibold truncate">{selectedProject.name}</p>
@@ -221,14 +221,14 @@ export default function Layout({
           style={{
             background: 'rgba(255,255,255,0.9)',
             backdropFilter: 'blur(12px)',
-            borderColor: 'rgba(169,180,255,0.2)',
+            borderColor: 'rgba(245,166,35,0.2)',
           }}
         >
           <button onClick={() => setSidebarOpen(true)} className="text-gray-400 hover:text-gray-700">
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <HardHat className="w-5 h-5 text-[#7E92F8]" />
+            <HardHat className="w-5 h-5 text-[#F5A623]" />
             <span className="font-semibold text-gray-800 text-sm">Lookahead Planning</span>
           </div>
         </div>

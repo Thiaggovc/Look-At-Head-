@@ -104,7 +104,7 @@ export default function Board({ activities }: BoardProps) {
         style={{
           background: 'rgba(255,255,255,0.7)',
           backdropFilter: 'blur(8px)',
-          borderColor: 'rgba(169,180,255,0.2)',
+          borderColor: 'rgba(245,166,35,0.2)',
         }}
       >
         <span className="text-gray-500">{filtered.length} actividades</span>
@@ -140,7 +140,7 @@ export default function Board({ activities }: BoardProps) {
               <div className="flex-1 flex items-center justify-center">
                 <div
                   className="text-center px-10 py-12 rounded-3xl"
-                  style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(169,180,255,0.2)' }}
+                  style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(245,166,35,0.2)' }}
                 >
                   <p className="text-lg font-semibold text-gray-600 mb-1">Sin actividades</p>
                   <p className="text-sm text-gray-400">Ajusta los filtros o sube un archivo Excel</p>

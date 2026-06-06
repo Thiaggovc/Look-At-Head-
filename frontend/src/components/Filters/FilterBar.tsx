@@ -10,7 +10,7 @@ interface FilterBarProps {
 
 const selectStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.8)',
-  border: '1px solid rgba(169,180,255,0.35)',
+  border: '1px solid rgba(245,166,35,0.35)',
   borderRadius: 10,
   padding: '6px 10px',
   fontSize: 13,
@@ -41,7 +41,7 @@ export default function FilterBar({ filters, onChange, activities }: FilterBarPr
       style={{
         background: 'rgba(255,255,255,0.85)',
         backdropFilter: 'blur(12px)',
-        borderColor: 'rgba(169,180,255,0.2)',
+        borderColor: 'rgba(245,166,35,0.2)',
       }}
     >
       <div className="flex flex-wrap items-center gap-2.5">
@@ -59,7 +59,7 @@ export default function FilterBar({ filters, onChange, activities }: FilterBarPr
           />
         </div>
 
-        <div className="w-px h-5 flex-shrink-0" style={{ background: 'rgba(169,180,255,0.3)' }} />
+        <div className="w-px h-5 flex-shrink-0" style={{ background: 'rgba(245,166,35,0.3)' }} />
 
         {/* Discipline */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -101,7 +101,7 @@ export default function FilterBar({ filters, onChange, activities }: FilterBarPr
                   color: active ? STATUS_TEXT[s] : '#6B7280',
                   border: active
                     ? `1px solid ${STATUS_TEXT[s]}44`
-                    : '1px solid rgba(169,180,255,0.25)',
+                    : '1px solid rgba(245,166,35,0.25)',
                   boxShadow: active ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
                 }}
               >
@@ -111,7 +111,7 @@ export default function FilterBar({ filters, onChange, activities }: FilterBarPr
           })}
         </div>
 
-        <div className="w-px h-5 flex-shrink-0" style={{ background: 'rgba(169,180,255,0.3)' }} />
+        <div className="w-px h-5 flex-shrink-0" style={{ background: 'rgba(245,166,35,0.3)' }} />
 
         {/* Group by */}
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -119,7 +119,7 @@ export default function FilterBar({ filters, onChange, activities }: FilterBarPr
           <span className="text-xs text-gray-400 font-medium">Agrupar:</span>
           <div
             className="flex rounded-xl overflow-hidden"
-            style={{ border: '1px solid rgba(169,180,255,0.35)', background: 'rgba(255,255,255,0.6)' }}
+            style={{ border: '1px solid rgba(245,166,35,0.35)', background: 'rgba(255,255,255,0.6)' }}
           >
             {([['workFront', 'Frente'], ['discipline', 'Disciplina'], ['status', 'Estado']] as const).map(([val, label]) => (
               <button
@@ -127,7 +127,7 @@ export default function FilterBar({ filters, onChange, activities }: FilterBarPr
                 onClick={() => onChange({ ...filters, groupBy: val })}
                 className="px-3 py-1.5 text-xs font-semibold transition-all duration-150"
                 style={filters.groupBy === val
-                  ? { background: '#7E92F8', color: '#fff' }
+                  ? { background: '#F5A623', color: '#fff' }
                   : { background: 'transparent', color: '#6B7280' }
                 }
               >

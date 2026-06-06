@@ -13,9 +13,9 @@ interface WorkFrontColumnProps {
 }
 
 const COLUMN_PALETTES = [
-  { base: '#AFC0FF', surface: 'rgba(175,192,255,0.82)', accent: '#7E92F8', text: '#3A4FB5' },
+  { base: '#F5C435', surface: 'rgba(175,192,255,0.82)', accent: '#F5A623', text: '#7A5800' },
   { base: '#F4D34F', surface: 'rgba(244,211,79,0.82)',  accent: '#D7A700', text: '#7A5800' },
-  { base: '#A86CF2', surface: 'rgba(168,108,242,0.82)', accent: '#7D3FE5', text: '#4A1FA0' },
+  { base: '#FF9B6A', surface: 'rgba(255,155,106,0.82)', accent: '#E06030', text: '#7A2800' },
   { base: '#50D162', surface: 'rgba(80,209,98,0.82)',   accent: '#28A745', text: '#145C24' },
   { base: '#F57D7D', surface: 'rgba(245,125,125,0.82)', accent: '#D94B4B', text: '#831414' },
   { base: '#67D7F5', surface: 'rgba(103,215,245,0.82)', accent: '#0EA5C9', text: '#0B5E7A' },

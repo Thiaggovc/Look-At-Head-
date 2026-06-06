@@ -27,7 +27,7 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
   pending: { bg: 'rgba(244,211,79,0.25)', color: '#92400E', label: 'Pendiente' },
 };
 
-export default function ActivityCard({ activity, compact = false, accentColor = '#7E92F8' }: ActivityCardProps) {
+export default function ActivityCard({ activity, compact = false, accentColor = '#F5A623' }: ActivityCardProps) {
   const [expanded, setExpanded] = useState(false);
   const color = getDisciplineColor(activity.discipline);
   const statusStyle = STATUS_STYLES[activity.status] ?? STATUS_STYLES.pending;
@@ -130,7 +130,7 @@ export default function ActivityCard({ activity, compact = false, accentColor = 
             {expanded && (
               <div
                 className="mt-1.5 p-2 rounded-lg text-[11px] text-gray-600 leading-relaxed"
-                style={{ background: 'rgba(169,180,255,0.12)' }}
+                style={{ background: 'rgba(245,166,35,0.12)' }}
               >
                 {activity.resources}
               </div>

@@ -90,7 +90,7 @@ export default function HistoryPage({ selectedProject }: HistoryPageProps) {
       <div className="w-80 flex-shrink-0 border-r border-gray-800 flex flex-col">
         <div className="px-4 py-4 border-b border-gray-800">
           <h2 className="text-base font-semibold text-white flex items-center gap-2">
-            <History className="w-4 h-4 text-indigo-400" />
+            <History className="w-4 h-4 text-amber-500" />
             Historial de versiones
           </h2>
           <p className="text-xs text-gray-400 mt-1">{snapshots.length} versiones cargadas</p>

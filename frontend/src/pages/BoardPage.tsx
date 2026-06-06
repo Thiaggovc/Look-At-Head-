@@ -92,7 +92,7 @@ export default function BoardPage({ selectedProject }: BoardPageProps) {
           <select
             value={selectedSnapshotId}
             onChange={e => setSelectedSnapshotId(e.target.value)}
-            className="appearance-none bg-gray-800 border border-gray-700 rounded-lg pl-3 pr-8 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
+            className="appearance-none bg-gray-800 border border-gray-700 rounded-lg pl-3 pr-8 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-400 cursor-pointer"
           >
             {snapshots.map(s => (
               <option key={s.id} value={s.id}>

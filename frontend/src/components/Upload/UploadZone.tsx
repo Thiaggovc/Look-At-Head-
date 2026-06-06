@@ -127,7 +127,7 @@ export default function UploadZone({ project, onSuccess }: UploadZoneProps) {
         className={clsx(
           'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200',
           isDragActive
-            ? 'border-indigo-500 bg-indigo-500/10'
+            ? 'border-amber-400 bg-amber-400/10'
             : 'border-gray-600 hover:border-gray-500 hover:bg-gray-800/50'
         )}
       >
@@ -135,9 +135,9 @@ export default function UploadZone({ project, onSuccess }: UploadZoneProps) {
         <div className="flex flex-col items-center gap-3">
           <div className={clsx(
             'w-12 h-12 rounded-full flex items-center justify-center transition-colors',
-            isDragActive ? 'bg-indigo-500/20' : 'bg-gray-700'
+            isDragActive ? 'bg-amber-400/20' : 'bg-gray-700'
           )}>
-            <Upload className={clsx('w-6 h-6', isDragActive ? 'text-indigo-400' : 'text-gray-400')} />
+            <Upload className={clsx('w-6 h-6', isDragActive ? 'text-amber-500' : 'text-gray-400')} />
           </div>
           <div>
             <p className="text-gray-200 font-medium">
@@ -166,7 +166,7 @@ export default function UploadZone({ project, onSuccess }: UploadZoneProps) {
                 <input
                   value={discipline}
                   onChange={e => updateDiscipline(index, e.target.value)}
-                  className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-200 w-36 focus:outline-none focus:border-indigo-500"
+                  className="bg-white/80 border border-amber-300 rounded px-2 py-1 text-xs text-gray-700 w-36 focus:outline-none focus:border-amber-400"
                   list="discipline-options"
                 />
                 <datalist id="discipline-options">
@@ -221,7 +221,7 @@ export default function UploadZone({ project, onSuccess }: UploadZoneProps) {
       {uploading && progress > 0 && (
         <div className="w-full bg-gray-700 rounded-full h-2">
           <div
-            className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+            className="bg-amber-500 h-2 rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
