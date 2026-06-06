@@ -1,6 +1,8 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Project } from '../../types';
+import { dataApi } from '../../api/client';
+import toast from 'react-hot-toast';
 import {
   LayoutDashboard,
   Kanban,
@@ -12,6 +14,9 @@ import {
   HardHat,
   Menu,
   X,
+  Download,
+  Upload,
+  Cloud,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -21,6 +26,7 @@ interface LayoutProps {
   selectedProject: Project | null;
   onProjectSelect: (p: Project) => void;
   onProjectCreate: (name: string) => Promise<Project>;
+  onDataChanged?: () => void;
   loading: boolean;
 }
 
@@ -36,6 +42,7 @@ export default function Layout({
   selectedProject,
   onProjectSelect,
   onProjectCreate,
+  onDataChanged,
   loading,
 }: LayoutProps) {
   const location = useLocation();
@@ -44,6 +51,42 @@ export default function Layout({
   const [creating, setCreating] = useState(false);
   const [showNewInput, setShowNewInput] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = () => {
+    const bundle = dataApi.export();
+    const stamp = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lookahead-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Datos exportados. Guárdalo en tu carpeta de OneDrive compartida.');
+  };
+
+  const handleImportClick = () => fileInputRef.current?.click();
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!window.confirm('Importar reemplazará TODOS los datos actuales en este dispositivo. ¿Continuar?')) {
+      e.target.value = '';
+      return;
+    }
+    try {
+      const text = await file.text();
+      const bundle = JSON.parse(text);
+      const { projects: np, activities: na } = dataApi.import(bundle);
+      toast.success(`Importado: ${np} proyecto(s), ${na} actividad(es)`);
+      onDataChanged?.();
+    } catch (err) {
+      toast.error(`No se pudo importar: ${String(err)}`);
+    } finally {
+      e.target.value = '';
+    }
+  };
 
   const handleCreate = async () => {
     if (!newProjectName.trim()) return;
@@ -177,9 +220,44 @@ export default function Layout({
         </div>
       )}
 
+      {/* Data: export / import (OneDrive workflow) */}
+      <div className="mx-3 mt-auto mb-2 px-3 py-3 rounded-xl" style={{ background: 'rgba(14,165,201,0.07)', border: '1px solid rgba(14,165,201,0.2)' }}>
+        <div className="flex items-center gap-1.5 mb-2">
+          <Cloud className="w-3.5 h-3.5" style={{ color: '#0EA5C9' }} />
+          <span className="text-xs font-semibold text-gray-500">Datos (OneDrive)</span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExport}
+            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded-lg text-white transition-colors"
+            style={{ background: '#0EA5C9' }}
+            title="Descargar todos los datos como archivo .json para guardar en OneDrive"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Exportar
+          </button>
+          <button
+            onClick={handleImportClick}
+            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded-lg transition-colors"
+            style={{ background: 'rgba(14,165,201,0.12)', color: '#0B7E99' }}
+            title="Cargar un archivo .json desde OneDrive"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Importar
+          </button>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          onChange={handleImportFile}
+          className="hidden"
+        />
+      </div>
+
       {selectedProject && (
         <div
-          className="mx-3 mb-4 mt-auto px-3 py-3 rounded-xl"
+          className="mx-3 mb-4 px-3 py-3 rounded-xl"
           style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)' }}
         >
           <p className="text-xs text-gray-400 mb-0.5">Proyecto activo</p>

@@ -40,12 +40,19 @@ function App() {
     setProjects(data);
   };
 
+  const handleDataChanged = async () => {
+    const data = await projectsApi.list();
+    setProjects(data);
+    setSelectedProject(data.length > 0 ? data[0] : null);
+  };
+
   return (
     <Layout
       projects={projects}
       selectedProject={selectedProject}
       onProjectSelect={handleProjectSelect}
       onProjectCreate={handleProjectCreate}
+      onDataChanged={handleDataChanged}
       loading={loading}
     >
       <Routes>
