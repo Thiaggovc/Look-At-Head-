@@ -34,11 +34,16 @@ export const uploadApi = {
     projectId: string,
     files: File[],
     discipline: string,
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number) => void,
+    window?: { startDate: string; endDate: string }
   ) => {
     const formData = new FormData();
     formData.append('projectId', projectId);
     formData.append('discipline', discipline);
+    if (window) {
+      formData.append('startDate', window.startDate);
+      formData.append('endDate', window.endDate);
+    }
     files.forEach(f => formData.append('files', f));
     return api.post<{
       results: Array<{

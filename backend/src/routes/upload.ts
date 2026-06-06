@@ -9,6 +9,12 @@ import { Activity } from '../types';
 
 const router = Router();
 
+const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function formatHuman(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${d} ${MONTHS_ES[m - 1]} ${y}`;
+}
+
 const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -44,10 +50,14 @@ router.post('/', upload.array('files', 20), async (req: Request, res: Response) 
     return res.status(400).json({ error: 'No files uploaded' });
   }
 
-  const { projectId, discipline } = req.body;
+  const { projectId, discipline, startDate, endDate } = req.body;
   if (!projectId) {
     return res.status(400).json({ error: 'projectId is required' });
   }
+
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  const lookaheadStart = typeof startDate === 'string' && dateRe.test(startDate) ? startDate : undefined;
+  const lookaheadEnd = typeof endDate === 'string' && dateRe.test(endDate) ? endDate : undefined;
 
   // Verify project exists
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
@@ -65,12 +75,20 @@ router.post('/', upload.array('files', 20), async (req: Request, res: Response) 
 
       // Read and parse the Excel file
       const buffer = fs.readFileSync(file.path);
-      const { activities, weekLabel } = parseExcelFile(buffer, fileDiscipline, file.originalname, snapshotId);
+      const { activities, weekLabel: detectedLabel } = parseExcelFile(
+        buffer, fileDiscipline, file.originalname, snapshotId,
+        { startDate: lookaheadStart, endDate: lookaheadEnd }
+      );
+
+      // When the user supplied a window, label the snapshot with it
+      const weekLabel = (lookaheadStart && lookaheadEnd)
+        ? `${formatHuman(lookaheadStart)} – ${formatHuman(lookaheadEnd)}`
+        : detectedLabel;
 
       // Save snapshot to DB
       db.prepare(
-        'INSERT INTO snapshots (id, project_id, discipline, filename, uploaded_at, week_label) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(snapshotId, projectId, fileDiscipline, file.originalname, now, weekLabel);
+        'INSERT INTO snapshots (id, project_id, discipline, filename, uploaded_at, week_label, lookahead_start, lookahead_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(snapshotId, projectId, fileDiscipline, file.originalname, now, weekLabel, lookaheadStart ?? null, lookaheadEnd ?? null);
 
       // Save activities to DB
       const insertActivity = db.prepare(`

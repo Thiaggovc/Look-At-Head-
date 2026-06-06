@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, X, FileSpreadsheet, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, X, FileSpreadsheet, Loader2, CheckCircle, AlertCircle, CalendarRange } from 'lucide-react';
 import clsx from 'clsx';
 import { uploadApi } from '../../api/client';
 import { Project } from '../../types';
@@ -29,6 +29,10 @@ export default function UploadZone({ project, onSuccess }: UploadZoneProps) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<UploadResult[]>([]);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  const datesValid = !!startDate && !!endDate && startDate <= endDate;
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles: FileWithDiscipline[] = acceptedFiles.map(f => ({
@@ -69,6 +73,10 @@ export default function UploadZone({ project, onSuccess }: UploadZoneProps) {
 
   const handleUpload = async () => {
     if (files.length === 0) return;
+    if (!datesValid) {
+      toast.error('Indica la fecha de inicio y fin del Look Ahead (inicio ≤ fin)');
+      return;
+    }
     setUploading(true);
     setProgress(0);
     setResults([]);
@@ -89,7 +97,8 @@ export default function UploadZone({ project, onSuccess }: UploadZoneProps) {
           project.id,
           disciplineFiles,
           discipline,
-          p => setProgress(Math.round((i / byDiscipline.size + p / 100 / byDiscipline.size) * 100))
+          p => setProgress(Math.round((i / byDiscipline.size + p / 100 / byDiscipline.size) * 100)),
+          { startDate, endDate }
         );
         allResults.push(...uploadResults);
         i++;
@@ -121,6 +130,50 @@ export default function UploadZone({ project, onSuccess }: UploadZoneProps) {
 
   return (
     <div className="space-y-4">
+      {/* Look-ahead date window */}
+      <div
+        className="rounded-2xl p-4"
+        style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.3)' }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <CalendarRange className="w-4 h-4" style={{ color: '#E09400' }} />
+          <h3 className="text-sm font-semibold text-gray-700">Periodo del Look Ahead</h3>
+          <span className="text-xs text-gray-400">(requerido)</span>
+        </div>
+        <p className="text-xs text-gray-500 mb-3">
+          Indica el rango de fechas que cubre esta planificación. El sistema asignará
+          las fechas a cada actividad y descartará lo que quede fuera de este periodo.
+        </p>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500">Fecha de inicio</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              className="input-field"
+              style={{ width: 170 }}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500">Fecha de fin</label>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={e => setEndDate(e.target.value)}
+              className="input-field"
+              style={{ width: 170 }}
+            />
+          </div>
+          {startDate && endDate && startDate > endDate && (
+            <span className="text-xs font-medium" style={{ color: '#D94B4B' }}>
+              La fecha de inicio debe ser anterior o igual a la de fin.
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Drop zone */}
       <div
         {...getRootProps()}
@@ -191,7 +244,7 @@ export default function UploadZone({ project, onSuccess }: UploadZoneProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={handleUpload}
-            disabled={uploading}
+            disabled={uploading || !datesValid}
             className="btn-primary flex items-center gap-2"
           >
             {uploading ? (

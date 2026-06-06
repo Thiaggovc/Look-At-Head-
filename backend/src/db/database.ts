@@ -31,6 +31,8 @@ export function initDatabase(): void {
       filename TEXT NOT NULL,
       uploaded_at TEXT NOT NULL,
       week_label TEXT NOT NULL,
+      lookahead_start TEXT,
+      lookahead_end TEXT,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
@@ -56,6 +58,16 @@ export function initDatabase(): void {
     CREATE INDEX IF NOT EXISTS idx_activities_fingerprint ON activities(fingerprint);
     CREATE INDEX IF NOT EXISTS idx_snapshots_project ON snapshots(project_id);
   `);
+
+  // Lightweight migrations for pre-existing databases
+  const snapCols = db.prepare(`PRAGMA table_info(snapshots)`).all() as { name: string }[];
+  const hasCol = (name: string) => snapCols.some(c => c.name === name);
+  if (!hasCol('lookahead_start')) {
+    db.exec(`ALTER TABLE snapshots ADD COLUMN lookahead_start TEXT`);
+  }
+  if (!hasCol('lookahead_end')) {
+    db.exec(`ALTER TABLE snapshots ADD COLUMN lookahead_end TEXT`);
+  }
 
   console.log('Database initialized at', DB_PATH);
 }

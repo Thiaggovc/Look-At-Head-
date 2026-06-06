@@ -153,6 +153,14 @@ function buildColDateMap(
   return { colDateMap, dayColumns, dayNameRow, year };
 }
 
+/** Add n calendar days to a 'YYYY-MM-DD' string and return a new 'YYYY-MM-DD'. */
+function addDays(iso: string, n: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
+}
+
 function findWeekLabel(sheet: XLSX.WorkSheet, range: XLSX.Range): string {
   for (let r = 0; r <= Math.min(range.e.r, 10); r++) {
     for (let c = 0; c <= range.e.c; c++) {
@@ -171,11 +179,19 @@ function findWeekLabel(sheet: XLSX.WorkSheet, range: XLSX.Range): string {
   return `Upload ${new Date().toLocaleDateString()}`;
 }
 
+export interface ParseOptions {
+  /** Explicit first day of the look-ahead window, 'YYYY-MM-DD'. */
+  startDate?: string;
+  /** Explicit last day of the look-ahead window, 'YYYY-MM-DD'. */
+  endDate?: string;
+}
+
 export function parseExcelFile(
   buffer: Buffer,
   discipline: string,
   filename: string,
   snapshotId: string,
+  options: ParseOptions = {},
 ): ParsedExcelData {
   const workbook = XLSX.read(buffer, {
     type: 'buffer',
@@ -202,11 +218,34 @@ export function parseExcelFile(
     const DATA_COL_RES  = 4;  // E
     const DATA_COL_SCHED_START = 5; // F
 
-    const { colDateMap, dayColumns, dayNameRow } = buildColDateMap(
-      sheet, range, DATA_COL_SCHED_START,
-    );
-
+    const detected = buildColDateMap(sheet, range, DATA_COL_SCHED_START);
+    const dayNameRow = detected.dayNameRow;
     if (dayNameRow === -1) continue; // couldn't parse this sheet
+
+    // Date assignment strategy:
+    //   When the user supplies an explicit look-ahead window, ignore the
+    //   sheet's (often stale) month/year headers entirely and assign dates
+    //   by counting consecutive calendar days from `startDate`, one per
+    //   day column. Columns whose date falls past `endDate` are dropped —
+    //   this is what filters out leftover marks from previous versions.
+    let colDateMap: Map<number, string>;
+    let dayColumns: number[];
+
+    if (options.startDate) {
+      colDateMap = new Map();
+      dayColumns = [];
+      detected.dayColumns.forEach((col, i) => {
+        const date = addDays(options.startDate!, i);
+        if (!options.endDate || date <= options.endDate) {
+          colDateMap.set(col, date);
+          dayColumns.push(col);
+        }
+      });
+    } else {
+      // Fallback: rely on the sheet's own month/day headers
+      colDateMap = detected.colDateMap;
+      dayColumns = detected.dayColumns;
+    }
 
     const dataStartRow = dayNameRow + 1;
 
@@ -243,6 +282,11 @@ export function parseExcelFile(
         currentGeneralTitle = colD;
         continue;
       }
+
+      // Drop rows that contribute nothing to THIS look-ahead window:
+      // no scheduled day inside the window and no resource/constraint note.
+      // These are typically activities left over from previous versions.
+      if (!hasX && !hasResources) continue;
 
       // Status
       let status: 'active' | 'blocked' | 'pending';
