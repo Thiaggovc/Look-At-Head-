@@ -9,7 +9,6 @@ import {
   History,
   FolderOpen,
   Plus,
-  HardHat,
   Menu,
   X,
   Download,
@@ -27,6 +26,26 @@ interface LayoutProps {
   onProjectCreate: (name: string) => Promise<Project>;
   onDataChanged?: () => void;
   loading: boolean;
+}
+
+function GanttCalendarLogo({ size = 21 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      {/* Calendar body */}
+      <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
+      {/* Hanging rings */}
+      <line x1="7.5" y1="2.5" x2="7.5" y2="6" />
+      <line x1="16.5" y1="2.5" x2="16.5" y2="6" />
+      {/* Header divider */}
+      <line x1="3" y1="9" x2="21" y2="9" />
+      {/* Gantt bars */}
+      <line x1="6.5" y1="12.5" x2="13" y2="12.5" strokeWidth={2.4} />
+      <line x1="9" y1="15.5" x2="17.5" y2="15.5" strokeWidth={2.4} />
+      <line x1="6.5" y1="18.5" x2="11.5" y2="18.5" strokeWidth={2.4} />
+    </svg>
+  );
 }
 
 const NAV_ITEMS = [
@@ -115,10 +134,10 @@ export default function Layout({
       {/* Brand */}
       <div className="brand">
         <div className="brand-logo">
-          <HardHat size={20} />
+          <GanttCalendarLogo size={21} />
         </div>
         <div>
-          <h1>Lookahead</h1>
+          <h1 style={{ letterSpacing: '0.16em' }}>Look a head</h1>
           <p>Planning Manager</p>
         </div>
       </div>
@@ -305,8 +324,8 @@ export default function Layout({
             <Menu size={20} />
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <HardHat size={18} style={{ color: 'var(--accent)' }} />
-            <span style={{ fontWeight: 600, fontSize: 14 }}>Lookahead Planning</span>
+            <span style={{ color: 'var(--accent)', display: 'inline-flex' }}><GanttCalendarLogo size={18} /></span>
+            <span style={{ fontWeight: 600, fontSize: 14, letterSpacing: '0.12em' }}>Look a head</span>
           </div>
           <button onClick={() => setSidebarOpen(false)} style={{ marginLeft: 'auto', color: 'var(--text-2)' }}>
             <X size={18} />
