@@ -46,9 +46,11 @@ function getMerged(sheet: XLSX.WorkSheet, r: number, c: number, merges: XLSX.Ran
   return cell(sheet, r, c);
 }
 
+// Only "x" and "✓" are valid check marks. "1" (numeric) is intentionally excluded
+// because day-number header rows use "1" as the number 1, not as a checkmark.
 function isX(sheet: XLSX.WorkSheet, r: number, c: number): boolean {
   const v = cell(sheet, r, c).toLowerCase();
-  return v === 'x' || v === '✓' || v === '1';
+  return v === 'x' || v === '✓';
 }
 
 const MONTH_MAP: Record<string, number> = {
@@ -74,18 +76,17 @@ const DAY_NAMES = new Set(['sun','mon','tue','wed','thu','fri','sat',
 function buildColDateMap(
   sheet: XLSX.WorkSheet,
   range: XLSX.Range,
-  dataStartCol: number,
   anchor?: { year: number; month: number; day: number },
 ): { colDateMap: Map<number, string>; dayColumns: number[]; dayNameRow: number; year: number } {
   const maxScanRow = Math.min(range.e.r, 25);
   const maxCol = range.e.c;
 
+  // Scan from col 0 so we catch ALL day columns regardless of template layout.
   let dayNameRow = -1;
   for (let r = 0; r <= maxScanRow; r++) {
     let matches = 0;
-    for (let c = dataStartCol; c <= maxCol; c++) {
-      const v = cell(sheet, r, c).toLowerCase();
-      if (DAY_NAMES.has(v)) matches++;
+    for (let c = 0; c <= maxCol; c++) {
+      if (DAY_NAMES.has(cell(sheet, r, c).toLowerCase())) matches++;
     }
     if (matches >= 3) { dayNameRow = r; break; }
   }
@@ -96,9 +97,6 @@ function buildColDateMap(
 
   const dayNumRow = dayNameRow - 1;
 
-  // Locate the row that holds month labels (e.g. "MAY", "JUN") so we can read
-  // the starting month. These labels live in merged header cells and are NOT
-  // aligned per day-column, so we only use them to seed the FIRST month.
   let monthRow = -1;
   for (let offset = 1; offset <= 3; offset++) {
     const r = dayNameRow - offset;
@@ -119,16 +117,14 @@ function buildColDateMap(
     }
   }
 
+  // Collect every column that has a day-name in the day-name row.
   const dayColumns: number[] = [];
-  const dayColSet = new Set<number>();
-  for (let c = dataStartCol; c <= maxCol; c++) {
-    const v = cell(sheet, dayNameRow, c).toLowerCase();
-    if (DAY_NAMES.has(v)) { dayColSet.add(c); dayColumns.push(c); }
+  for (let c = 0; c <= maxCol; c++) {
+    if (DAY_NAMES.has(cell(sheet, dayNameRow, c).toLowerCase())) dayColumns.push(c);
   }
 
-  // Seed the starting month/year by reading the first month label found to the
-  // left of / at the first day column. The explicit anchor (the look-ahead start
-  // date chosen by the user) is only a FALLBACK for sheets with no readable month.
+  // Seed starting month from the first month label to the left of / at the first
+  // day column. Fall back to the explicit anchor only when no label is found.
   let curYear = year;
   let curMonth = 0;
   if (monthRow >= 0 && dayColumns.length > 0) {
@@ -143,9 +139,7 @@ function buildColDateMap(
   }
   if (curMonth === 0) curMonth = new Date().getMonth() + 1;
 
-  // Walk day columns left→right, reading the day NUMBER from each. When the day
-  // number drops (e.g. 31 → 1) we crossed into the next month, so roll forward.
-  // This is what makes consecutive files (May→Jun, Jun→Jul) resolve correctly.
+  // Walk day columns left→right. When the day number drops (31→1) roll the month.
   const colDateMap = new Map<number, string>();
   let prevDay = 0;
   for (const c of dayColumns) {
@@ -158,9 +152,7 @@ function buildColDateMap(
     }
     prevDay = dayNum;
 
-    const mm = String(curMonth).padStart(2, '0');
-    const dd = String(dayNum).padStart(2, '0');
-    colDateMap.set(c, `${curYear}-${mm}-${dd}`);
+    colDateMap.set(c, `${curYear}-${String(curMonth).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`);
   }
 
   return { colDateMap, dayColumns, dayNameRow, year: curYear };
@@ -212,24 +204,29 @@ export function parseExcelFile(
 
     weekLabel = findWeekLabel(sheet, range);
 
-    const DATA_COL_DESC = 3;  // D
-    const DATA_COL_RES  = 4;  // E
-    const DATA_COL_SCHED_START = 5; // F
-
-    // Use the look-ahead start date (if provided) to anchor the first month/year,
-    // then let the parser roll months over based on the day numbers in the sheet.
     let anchor: { year: number; month: number; day: number } | undefined;
     if (options.startDate) {
       const [ay, am, ad] = options.startDate.split('-').map(Number);
       anchor = { year: ay, month: am, day: ad };
     }
 
-    const detected = buildColDateMap(sheet, range, DATA_COL_SCHED_START, anchor);
+    const detected = buildColDateMap(sheet, range, anchor);
     const dayNameRow = detected.dayNameRow;
     if (dayNameRow === -1) continue;
 
-    // The window (start/end) only FILTERS which columns count — the dates
-    // themselves come from each column's real day number in the sheet.
+    // Auto-detect column positions from the first day column.
+    // Pattern (works across templates):
+    //   col (dayStart-2) = description
+    //   col (dayStart-1) = resources
+    //   col 0..(dayStart-3) = workFront candidates (section headers / merged cells)
+    const dayStartCol = detected.dayColumns[0] ?? 5;
+    const descCol = Math.max(0, dayStartCol - 2);
+    const resCol  = Math.max(0, dayStartCol - 1);
+    // When descCol == 0 there is no dedicated workFront column; section-header rows
+    // detected inline in descCol will update currentWorkFront directly.
+    const hasWfColumn = descCol > 0;
+
+    // Apply window filter: keep only day columns within [startDate, endDate].
     let colDateMap: Map<number, string>;
     let dayColumns: number[];
 
@@ -240,7 +237,7 @@ export function parseExcelFile(
         const date = detected.colDateMap.get(col);
         if (!date) continue;
         if (options.startDate && date < options.startDate) continue;
-        if (options.endDate && date > options.endDate) continue;
+        if (options.endDate   && date > options.endDate)   continue;
         colDateMap.set(col, date);
         dayColumns.push(col);
       }
@@ -250,35 +247,57 @@ export function parseExcelFile(
     }
 
     const dataStartRow = dayNameRow + 1;
-
     let currentWorkFront = '';
     let currentGeneralTitle = '';
 
     for (let r = dataStartRow; r <= range.e.r; r++) {
-      const colB = getMerged(sheet, r, 1, merges).trim();
-      const colD = cell(sheet, r, DATA_COL_DESC).trim();
-      const colE = cell(sheet, r, DATA_COL_RES).trim();
 
-      if (colB && colB.length > 0 && colB.length < 120 && !/^\d+$/.test(colB)) {
-        currentWorkFront = colB;
-      }
-
-      if (!colD) continue;
-
-      const scheduledDays: string[] = [];
-      for (const c of dayColumns) {
-        if (isX(sheet, r, c)) {
-          const dateStr = colDateMap.get(c);
-          scheduledDays.push(dateStr ?? `col_${c}`);
+      // ── WorkFront from dedicated column(s) left of descCol ──────────────────
+      if (hasWfColumn) {
+        // Scan every column between 0 and descCol-1 (inclusive) for section labels.
+        // Use getMerged so merged-cell headers are picked up correctly.
+        for (let c = 0; c < descCol; c++) {
+          const v = getMerged(sheet, r, c, merges).trim();
+          if (v && v.length < 120 && !/^\d+$/.test(v)) {
+            currentWorkFront = v;
+            break;
+          }
         }
       }
 
-      const hasX = scheduledDays.length > 0;
+      const colD = cell(sheet, r, descCol).trim();
+      const colE = resCol !== descCol ? cell(sheet, r, resCol).trim() : '';
+
+      if (!colD) continue;
+
+      // ── Check X marks in day columns ────────────────────────────────────────
+      const scheduledDays: string[] = [];
+      for (const c of dayColumns) {
+        if (isX(sheet, r, c)) {
+          scheduledDays.push(colDateMap.get(c) ?? `col_${c}`);
+        }
+      }
+
+      const hasX         = scheduledDays.length > 0;
       const hasResources = colE.length > 0;
 
-      const looksLikeTitle = !hasX && !hasResources && colD === colD.toUpperCase() && colD.length < 60;
-      if (looksLikeTitle) {
-        currentGeneralTitle = colD;
+      // ── Section-header detection ─────────────────────────────────────────────
+      // A row qualifies as a section header when it has no X marks, no resources,
+      // and its description text is short ALL-CAPS (typical of group labels).
+      const looksLikeHeader =
+        !hasX && !hasResources &&
+        colD === colD.toUpperCase() &&
+        colD.length > 1 && colD.length < 80;
+
+      if (looksLikeHeader) {
+        if (hasWfColumn) {
+          // Template has a dedicated workFront column → treat as generalTitle label.
+          currentGeneralTitle = colD;
+        } else {
+          // Compact template (descCol == 0) → no separate column, section labels
+          // appear inline and act as workFront separators.
+          currentWorkFront = colD;
+        }
         continue;
       }
 
@@ -292,8 +311,8 @@ export function parseExcelFile(
       const realDates = scheduledDays
         .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))
         .sort();
-      const startDate = realDates[0] ?? null;
-      const endDate   = realDates[realDates.length - 1] ?? null;
+      const startDate    = realDates[0] ?? null;
+      const endDate      = realDates[realDates.length - 1] ?? null;
       const durationDays = realDates.length;
 
       const wf = currentWorkFront || 'General';
