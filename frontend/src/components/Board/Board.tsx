@@ -218,19 +218,21 @@ export default function Board({ activities, projectId, projectName, onRefresh, r
   };
 
   const handleExportPdf = () => {
+    const isDateMode = filters.groupBy === 'endDate';
     const pdfColumns: PdfColumn[] = columns.map(([key, acts]) => {
-      const fmt = filters.groupBy === 'endDate' && /^\d{4}-\d{2}-\d{2}$/.test(key)
-        ? formatColumnTitle(key)
-        : null;
+      const isDate = isDateMode && /^\d{4}-\d{2}-\d{2}$/.test(key);
+      const fmt = isDate ? formatColumnTitle(key) : null;
       return {
         title: fmt ? fmt.main : key,
         subtitle: fmt ? fmt.sub : undefined,
+        dateKey: isDate ? key : undefined,
         activities: acts,
       };
     });
     exportBoardToPdf(pdfColumns, {
       projectName: projectName ?? 'Look Ahead',
       groupLabel,
+      calendarMode: isDateMode,
     });
   };
 
