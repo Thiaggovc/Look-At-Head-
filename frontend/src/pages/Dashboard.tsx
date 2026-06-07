@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Project, Snapshot, Stats } from '../types';
 import { snapshotsApi, activitiesApi } from '../api/client';
 import UploadZone from '../components/Upload/UploadZone';
@@ -21,14 +21,33 @@ interface DashboardProps {
   onRefresh: () => void;
 }
 
-const STAT_CARDS = [
-  { key: 'total',   label: 'Total',       icon: Activity,     accent: '#F5A623', bg: 'rgba(245,166,35,0.12)' },
-  { key: 'active',  label: 'Activas',     icon: CheckCircle,  accent: '#28A745', bg: 'rgba(80,209,98,0.12)'   },
-  { key: 'blocked', label: 'Bloqueadas',  icon: AlertCircle,  accent: '#D94B4B', bg: 'rgba(245,125,125,0.12)' },
-  { key: 'pending', label: 'Pendientes',  icon: Clock,        accent: '#D7A700', bg: 'rgba(244,211,79,0.15)'  },
-] as const;
+function useCountUp(target: number, dur = 700): number {
+  const [n, setN] = useState(target);
+  const prev = useRef(target);
+  useEffect(() => {
+    const from = prev.current, to = target, t0 = performance.now();
+    if (from === to) return;
+    let raf: number;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - p, 3);
+      setN(Math.round(from + (to - from) * e));
+      if (p < 1) raf = requestAnimationFrame(tick); else prev.current = to;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, dur]);
+  return n;
+}
 
-const DISC_COLORS = ['#F5A623','#FF9B6A','#50D162','#F4D34F','#F57D7D','#67D7F5'];
+const STAT_HUES = [70, 150, 22, 80] as const;
+
+const STAT_CARDS = [
+  { key: 'total',   label: 'Total',       icon: Activity,    hue: 70  },
+  { key: 'active',  label: 'Activas',     icon: CheckCircle, hue: 150 },
+  { key: 'blocked', label: 'Bloqueadas',  icon: AlertCircle, hue: 22  },
+  { key: 'pending', label: 'Pendientes',  icon: Clock,       hue: 80  },
+] as const;
 
 export default function Dashboard({ selectedProject, onProjectCreate, onRefresh }: DashboardProps) {
   const [snapshots, setSnapshots]       = useState<Snapshot[]>([]);
@@ -74,38 +93,37 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
 
   if (!selectedProject) {
     return (
-      <div className="flex items-center justify-center h-full p-8">
-        <div
-          className="max-w-md w-full rounded-3xl p-10 text-center"
-          style={{
-            background: 'rgba(255,255,255,0.88)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255,255,255,0.28)',
-            boxShadow: '0 12px 32px -4px rgba(0,0,0,0.1)',
-          }}
-        >
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
-            style={{ background: 'rgba(245,166,35,0.15)' }}
-          >
-            <Plus className="w-8 h-8" style={{ color: '#F5A623' }} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', padding: 32 }}>
+        <div style={{
+          maxWidth: 400, width: '100%', borderRadius: 'var(--r-xl)', padding: '40px 40px',
+          textAlign: 'center', background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)',
+          border: '1px solid var(--glass-edge)', boxShadow: 'var(--shadow-modal)',
+        }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 'var(--r-lg)', display: 'grid', placeItems: 'center',
+            margin: '0 auto 20px', background: 'var(--accent-soft)',
+          }}>
+            <Plus size={28} style={{ color: 'var(--accent)' }} />
           </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Crea tu primer proyecto</h2>
-          <p className="text-gray-500 text-sm mb-6">
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 8px', color: 'var(--text)' }}>
+            Crea tu primer proyecto
+          </h2>
+          <p style={{ color: 'var(--text-3)', fontSize: 13, margin: '0 0 22px' }}>
             Comienza creando un proyecto para gestionar tu planificación lookahead
           </p>
-          <div className="flex gap-2">
+          <div style={{ display: 'flex', gap: 8 }}>
             <input
               value={newProjectName}
               onChange={e => setNewProjectName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleCreateProject()}
               placeholder="Nombre del proyecto"
-              className="input-field flex-1"
+              className="inp"
+              style={{ flex: 1 }}
             />
             <button
               onClick={handleCreateProject}
               disabled={creatingProject || !newProjectName.trim()}
-              className="btn-primary"
+              className="btn btn-primary"
             >
               {creatingProject ? '...' : 'Crear'}
             </button>
@@ -123,38 +141,27 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto overflow-y-auto h-full">
-
-      {/* Page header */}
-      <div className="flex items-start justify-between mb-6">
+    <div className="dash">
+      {/* Header row */}
+      <div className="dash-row">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">{selectedProject.name}</h1>
-          <p className="text-gray-400 text-sm mt-1">Dashboard de planificación lookahead</p>
+          <h1 className="title" style={{ fontSize: 24, color: 'var(--text)' }}>{selectedProject.name}</h1>
+          <p style={{ color: 'var(--text-3)', fontSize: 13, margin: '4px 0 0' }}>Dashboard de planificación lookahead</p>
         </div>
-        <button
-          onClick={() => setShowUpload(p => !p)}
-          className="btn-primary flex items-center gap-2"
-        >
-          {showUpload ? <X className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
+        <span style={{ flex: 1 }} />
+        <button className="btn btn-primary" onClick={() => setShowUpload(p => !p)}>
+          {showUpload ? <X /> : <Upload />}
           {showUpload ? 'Cerrar' : 'Subir Excel'}
         </button>
       </div>
 
       {/* Upload panel */}
       {showUpload && (
-        <div
-          className="rounded-3xl p-6 mb-6 animate-fade-in"
-          style={{
-            background: 'rgba(255,255,255,0.88)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255,255,255,0.28)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-          }}
-        >
-          <h2 className="text-base font-semibold text-gray-700 mb-4 flex items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4" style={{ color: '#F5A623' }} />
+        <div className="panel" style={{ marginBottom: 18, animation: 'cardIn .35s var(--ease)' }}>
+          <div className="panel-h">
+            <FileSpreadsheet />
             Cargar archivos Excel
-          </h2>
+          </div>
           <UploadZone
             project={selectedProject}
             onSuccess={() => { loadData(); setShowUpload(false); }}
@@ -162,81 +169,51 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
         </div>
       )}
 
-      {/* Stats */}
+      {/* Stat cards */}
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="dash-stats">
           {[...Array(4)].map((_, i) => (
-            <div
-              key={i}
-              className="rounded-2xl h-24 animate-pulse"
-              style={{ background: 'rgba(255,255,255,0.6)' }}
-            />
+            <div key={i} className="dash-stat" style={{ height: 100, opacity: .4 }} />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {STAT_CARDS.map(({ key, label, icon: Icon, accent, bg }) => (
-            <div
-              key={key}
-              className="rounded-2xl p-5"
-              style={{
-                background: bg,
-                border: `1px solid ${accent}33`,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div className="flex items-center gap-2 mb-3" style={{ color: accent }}>
-                <Icon className="w-4 h-4" />
-                <span className="text-xs font-semibold">{label}</span>
-              </div>
-              <p className="text-3xl font-bold" style={{ color: accent }}>
-                {statValues[key]}
-              </p>
-            </div>
-          ))}
+        <div className="dash-stats">
+          {STAT_CARDS.map(({ key, label, icon: Icon, hue }) => {
+            const val = statValues[key];
+            return (
+              <StatCard key={key} label={label} icon={Icon} value={val} hue={hue} />
+            );
+          })}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-
-        {/* Snapshots */}
-        <div
-          className="rounded-3xl p-5"
-          style={{
-            background: 'rgba(255,255,255,0.88)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255,255,255,0.28)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.06)',
-          }}
-        >
-          <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4" style={{ color: '#F5A623' }} />
+      {/* Main grid */}
+      <div className="dash-grid">
+        {/* Snapshots panel */}
+        <div className="panel">
+          <div className="panel-h">
+            <FileSpreadsheet />
             Versiones cargadas ({snapshots.length})
-          </h2>
+          </div>
           {snapshots.length === 0 ? (
-            <div className="text-center py-8">
-              <Upload className="w-8 h-8 mx-auto mb-2" style={{ color: '#CBD5E1' }} />
-              <p className="text-gray-400 text-sm">No hay versiones cargadas</p>
+            <div style={{ textAlign: 'center', padding: '32px 0' }}>
+              <Upload size={32} style={{ margin: '0 auto 10px', color: 'var(--text-3)', display: 'block', opacity: .4 }} />
+              <p style={{ color: 'var(--text-3)', fontSize: 13, margin: '0 0 8px' }}>No hay versiones cargadas</p>
               <button
                 onClick={() => setShowUpload(true)}
-                className="text-sm mt-2 font-medium transition-colors"
-                style={{ color: '#F5A623' }}
+                style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer', background: 'none', border: 'none' }}
               >
                 Subir un archivo Excel
               </button>
             </div>
           ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto' }}>
               {snapshots.map(s => (
-                <div
-                  key={s.id}
-                  className="flex items-center gap-3 p-3 rounded-xl"
-                  style={{ background: 'rgba(245,166,35,0.07)', border: '1px solid rgba(245,166,35,0.15)' }}
-                >
-                  <FileSpreadsheet className="w-4 h-4 flex-shrink-0" style={{ color: '#28A745' }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-700 truncate">{s.filename}</p>
-                    <p className="text-xs text-gray-400">{s.discipline} · {s.week_label}</p>
+                <div key={s.id} className="version-card">
+                  <div className="vc-ico"><FileSpreadsheet /></div>
+                  <div>
+                    <div className="vc-t">{s.filename}</div>
+                    <div className="vc-s">{s.discipline} · {s.week_label}</div>
                   </div>
                 </div>
               ))}
@@ -246,69 +223,23 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
 
         {/* By discipline */}
         {stats && stats.byDiscipline.length > 0 && (
-          <div
-            className="rounded-3xl p-5"
-            style={{
-              background: 'rgba(255,255,255,0.88)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255,255,255,0.28)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.06)',
-            }}
-          >
-            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" style={{ color: '#F5A623' }} />
+          <div className="panel">
+            <div className="panel-h">
+              <BarChart3 />
               Por disciplina
-            </h2>
-            <div className="space-y-3">
-              {stats.byDiscipline.map(({ discipline, count }, i) => {
-                const color = DISC_COLORS[i % DISC_COLORS.length];
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {stats.byDiscipline.map(({ discipline, count }) => {
                 const pct = stats.total > 0 ? (count / stats.total) * 100 : 0;
                 return (
                   <div key={discipline}>
-                    <div className="flex justify-between text-sm mb-1.5">
-                      <span className="text-gray-600 font-medium">{discipline}</span>
-                      <span className="text-gray-400 font-semibold">{count}</span>
+                    <div className="bar-row-h">
+                      <span style={{ color: 'var(--text-2)', fontSize: 13 }}>{discipline}</span>
+                      <b style={{ color: 'var(--text)', fontSize: 13 }}>{count}</b>
                     </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(245,166,35,0.2)' }}>
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${pct}%`, background: color }}
-                      />
+                    <div className="bar">
+                      <i style={{ width: `${pct}%` }} />
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* By work front */}
-        {stats && stats.byWorkFront.length > 0 && (
-          <div
-            className="rounded-3xl p-5 md:col-span-2"
-            style={{
-              background: 'rgba(255,255,255,0.88)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255,255,255,0.28)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.06)',
-            }}
-          >
-            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" style={{ color: '#F5A623' }} />
-              Por frente de obra
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {stats.byWorkFront.map(({ work_front, count }, i) => {
-                const color = DISC_COLORS[i % DISC_COLORS.length];
-                return (
-                  <div
-                    key={work_front}
-                    className="rounded-2xl p-4"
-                    style={{ background: `${color}14`, border: `1px solid ${color}33` }}
-                  >
-                    <p className="text-xs font-semibold text-gray-500 truncate mb-1">{work_front}</p>
-                    <p className="text-2xl font-bold" style={{ color }}>{count}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">actividades</p>
                   </div>
                 );
               })}
@@ -316,6 +247,41 @@ export default function Dashboard({ selectedProject, onProjectCreate, onRefresh 
           </div>
         )}
       </div>
+
+      {/* Work fronts */}
+      {stats && stats.byWorkFront.length > 0 && (
+        <div className="panel">
+          <div className="panel-h">
+            <BarChart3 />
+            Por frente de obra
+          </div>
+          <div className="front-grid">
+            {stats.byWorkFront.map(({ work_front, count }, i) => {
+              const hue = [70, 250, 30, 150, 285, 22, 190, 310][i % 8];
+              return (
+                <div key={work_front} className="front-card" style={{ '--ch': hue } as React.CSSProperties}>
+                  <div className="fc-t">{work_front}</div>
+                  <div className="fc-v">{count}</div>
+                  <div className="fc-s">actividades</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, icon: Icon, value, hue }: { label: string; icon: React.ElementType; value: number; hue: number }) {
+  const animated = useCountUp(value);
+  return (
+    <div className="dash-stat" style={{ '--ch': hue } as React.CSSProperties}>
+      <div className="dash-stat-h">
+        <Icon size={16} />
+        {label}
+      </div>
+      <div className="dash-stat-v">{animated}</div>
     </div>
   );
 }

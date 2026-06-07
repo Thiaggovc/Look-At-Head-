@@ -1,4 +1,4 @@
-import { ReactNode, useState, useRef } from 'react';
+import { ReactNode, useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Project } from '../../types';
 import { dataApi } from '../../api/client';
@@ -9,16 +9,15 @@ import {
   History,
   FolderOpen,
   Plus,
-  ChevronDown,
-  ChevronRight,
   HardHat,
   Menu,
   X,
   Download,
   Upload,
   Cloud,
+  Sun,
+  Moon,
 } from 'lucide-react';
-import clsx from 'clsx';
 
 interface LayoutProps {
   children: ReactNode;
@@ -46,12 +45,23 @@ export default function Layout({
   loading,
 }: LayoutProps) {
   const location = useLocation();
-  const [projectsOpen, setProjectsOpen] = useState(true);
   const [newProjectName, setNewProjectName] = useState('');
   const [creating, setCreating] = useState(false);
   const [showNewInput, setShowNewInput] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('la-theme') || 'light');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('la-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    document.documentElement.classList.add('theme-anim');
+    setTimeout(() => document.documentElement.classList.remove('theme-anim'), 300);
+    setTheme(t => t === 'light' ? 'dark' : 'light');
+  };
 
   const handleExport = () => {
     const bundle = dataApi.export();
@@ -101,148 +111,120 @@ export default function Layout({
   };
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full sidebar">
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-[rgba(245,166,35,0.2)]">
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
-          style={{ background: 'linear-gradient(135deg,#F5A623,#E07B00)' }}
-        >
-          <HardHat className="w-5 h-5 text-white" />
+    <>
+      {/* Brand */}
+      <div className="brand">
+        <div className="brand-logo">
+          <HardHat size={20} />
         </div>
         <div>
-          <h1 className="text-gray-800 font-bold text-sm leading-tight tracking-tight">Lookahead</h1>
-          <p className="text-gray-400 text-xs font-medium">Planning Manager</p>
+          <h1>Lookahead</h1>
+          <p>Planning Manager</p>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="px-3 py-4 space-y-1">
+      <nav className="nav">
         {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
           <Link
             key={path}
             to={path}
             onClick={() => setSidebarOpen(false)}
-            className={clsx(
-              'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
-              location.pathname === path
-                ? 'text-[#F5A623] shadow-sm'
-                : 'hover:bg-[rgba(245,166,35,0.12)] text-gray-500 hover:text-gray-700'
-            )}
-            style={location.pathname === path ? {
-              background: 'rgba(245,166,35,0.12)',
-              border: '1px solid rgba(245,166,35,0.25)',
-            } : {}}
+            className={'nav-item' + (location.pathname === path ? ' active' : '')}
           >
-            <Icon className="w-4 h-4 flex-shrink-0" />
+            <Icon size={17} />
             {label}
           </Link>
         ))}
       </nav>
 
-      <div className="px-4 pt-2 pb-1">
-        <button
-          onClick={() => setProjectsOpen(p => !p)}
-          className="flex items-center justify-between w-full text-xs font-semibold text-gray-400 uppercase tracking-wider px-1 py-1 hover:text-gray-600 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <FolderOpen className="w-3 h-3" />
-            Proyectos
-          </div>
-          {projectsOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-        </button>
+      {/* Projects label */}
+      <div className="nav-label">
+        <FolderOpen size={12} />
+        Proyectos
       </div>
 
-      {projectsOpen && (
-        <div className="px-3 space-y-1 flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="px-2 py-2 text-xs text-gray-400 animate-pulse">Cargando...</div>
-          ) : (
-            projects.map(p => (
-              <button
-                key={p.id}
-                onClick={() => { onProjectSelect(p); setSidebarOpen(false); }}
-                className={clsx(
-                  'w-full text-left px-3 py-2 rounded-xl text-sm transition-all duration-150 truncate',
-                  selectedProject?.id === p.id
-                    ? 'text-[#F5A623] font-medium'
-                    : 'text-gray-500 hover:bg-[rgba(245,166,35,0.1)] hover:text-gray-700'
-                )}
-                style={selectedProject?.id === p.id ? {
-                  background: 'rgba(245,166,35,0.1)',
-                  border: '1px solid rgba(245,166,35,0.2)',
-                } : {}}
-              >
-                {p.name}
-              </button>
-            ))
-          )}
-
-          {showNewInput ? (
-            <div className="px-1 py-2">
-              <input
-                autoFocus
-                value={newProjectName}
-                onChange={e => setNewProjectName(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') handleCreate();
-                  if (e.key === 'Escape') { setShowNewInput(false); setNewProjectName(''); }
-                }}
-                placeholder="Nombre del proyecto"
-                className="input-field text-sm"
-              />
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={handleCreate}
-                  disabled={creating || !newProjectName.trim()}
-                  className="flex-1 text-white text-xs py-1.5 rounded-lg disabled:opacity-50 transition-colors font-medium"
-                  style={{ background: '#F5A623' }}
-                >
-                  {creating ? 'Creando...' : 'Crear'}
-                </button>
-                <button
-                  onClick={() => { setShowNewInput(false); setNewProjectName(''); }}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs py-1.5 rounded-lg transition-colors"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          ) : (
+      {/* Project list */}
+      <div className="proj">
+        {loading ? (
+          <div style={{ padding: '8px 13px', fontSize: 12, color: 'var(--text-3)' }}>Cargando...</div>
+        ) : (
+          projects.map(p => (
             <button
-              onClick={() => setShowNewInput(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-[#F5A623] transition-colors rounded-xl hover:bg-[rgba(245,166,35,0.08)]"
+              key={p.id}
+              onClick={() => { onProjectSelect(p); setSidebarOpen(false); }}
+              className={'proj-item' + (selectedProject?.id === p.id ? ' active' : '')}
             >
-              <Plus className="w-3.5 h-3.5" />
-              Nuevo proyecto
+              {p.name}
             </button>
-          )}
-        </div>
-      )}
+          ))
+        )}
 
-      {/* Data: export / import (OneDrive workflow) */}
-      <div className="mx-3 mt-auto mb-2 px-3 py-3 rounded-xl" style={{ background: 'rgba(14,165,201,0.07)', border: '1px solid rgba(14,165,201,0.2)' }}>
-        <div className="flex items-center gap-1.5 mb-2">
-          <Cloud className="w-3.5 h-3.5" style={{ color: '#0EA5C9' }} />
-          <span className="text-xs font-semibold text-gray-500">Datos (OneDrive)</span>
-        </div>
-        <div className="flex gap-2">
+        {showNewInput ? (
+          <div style={{ padding: '6px 4px' }}>
+            <input
+              autoFocus
+              value={newProjectName}
+              onChange={e => setNewProjectName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleCreate();
+                if (e.key === 'Escape') { setShowNewInput(false); setNewProjectName(''); }
+              }}
+              placeholder="Nombre del proyecto"
+              style={{
+                width: '100%', padding: '7px 10px', fontSize: 13, borderRadius: 9,
+                background: 'var(--surface-2)', border: '1px solid var(--border)',
+                color: 'var(--text)', outline: 'none',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+              <button
+                onClick={handleCreate}
+                disabled={creating || !newProjectName.trim()}
+                style={{
+                  flex: 1, padding: '6px', fontSize: 12, fontWeight: 600, borderRadius: 8,
+                  background: 'linear-gradient(150deg,var(--accent),var(--accent-2))', color: '#fff',
+                  opacity: (creating || !newProjectName.trim()) ? 0.5 : 1,
+                }}
+              >
+                {creating ? 'Creando...' : 'Crear'}
+              </button>
+              <button
+                onClick={() => { setShowNewInput(false); setNewProjectName(''); }}
+                style={{
+                  flex: 1, padding: '6px', fontSize: 12, fontWeight: 600, borderRadius: 8,
+                  background: 'var(--surface-3)', color: 'var(--text-2)',
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
           <button
-            onClick={handleExport}
-            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded-lg text-white transition-colors"
-            style={{ background: '#0EA5C9' }}
-            title="Descargar todos los datos como archivo .json para guardar en OneDrive"
+            onClick={() => setShowNewInput(true)}
+            className="proj-item"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-3)' }}
           >
-            <Download className="w-3.5 h-3.5" />
+            <Plus size={13} />
+            Nuevo proyecto
+          </button>
+        )}
+      </div>
+
+      {/* Export / Import */}
+      <div className="side-card">
+        <div className="h">
+          <Cloud size={13} />
+          Datos (OneDrive)
+        </div>
+        <div className="side-actions">
+          <button className="side-btn" onClick={handleExport} title="Descargar datos como .json">
+            <Download size={13} />
             Exportar
           </button>
-          <button
-            onClick={handleImportClick}
-            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded-lg transition-colors"
-            style={{ background: 'rgba(14,165,201,0.12)', color: '#0B7E99' }}
-            title="Cargar un archivo .json desde OneDrive"
-          >
-            <Upload className="w-3.5 h-3.5" />
+          <button className="side-btn" onClick={handleImportClick} title="Cargar .json desde OneDrive">
+            <Upload size={13} />
             Importar
           </button>
         </div>
@@ -251,70 +233,90 @@ export default function Layout({
           type="file"
           accept="application/json,.json"
           onChange={handleImportFile}
-          className="hidden"
+          style={{ display: 'none' }}
         />
       </div>
 
+      {/* Theme toggle */}
+      <div style={{ padding: '14px 18px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Sun size={14} style={{ color: 'var(--text-3)' }} />
+        <button className="switch" onClick={toggleTheme} aria-label="Toggle theme">
+          <div className="knob">
+            {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
+          </div>
+        </button>
+        <Moon size={14} style={{ color: 'var(--text-3)' }} />
+      </div>
+
+      {/* Active project */}
       {selectedProject && (
-        <div
-          className="mx-3 mb-4 px-3 py-3 rounded-xl"
-          style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)' }}
-        >
-          <p className="text-xs text-gray-400 mb-0.5">Proyecto activo</p>
-          <p className="text-sm text-gray-700 font-semibold truncate">{selectedProject.name}</p>
+        <div className="active-proj">
+          <p className="l">Proyecto activo</p>
+          <p className="n" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {selectedProject.name}
+          </p>
         </div>
       )}
-    </div>
+    </>
   );
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#F5F6FA' }}>
+    <div className="app">
+      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-20 lg:hidden"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)', zIndex: 20 }}
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar desktop */}
-      <aside className="hidden lg:flex w-64 flex-col flex-shrink-0">
+      <aside className="sidebar" style={{ display: 'none' } as React.CSSProperties} id="sidebar-desktop">
+        <SidebarContent />
+      </aside>
+      <aside className="sidebar lg-sidebar">
         <SidebarContent />
       </aside>
 
       {/* Sidebar mobile */}
       <aside
-        className={clsx(
-          'fixed inset-y-0 left-0 z-30 w-64 flex flex-col lg:hidden transition-transform duration-300',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        )}
+        className="sidebar"
+        style={{
+          position: 'fixed', inset: '0 auto 0 0', zIndex: 30,
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform .3s var(--ease)',
+        } as React.CSSProperties}
       >
         <SidebarContent />
       </aside>
 
       {/* Main */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <main className="main">
         {/* Mobile header */}
         <div
-          className="lg:hidden flex items-center gap-3 px-4 py-3 border-b"
           style={{
-            background: 'rgba(255,255,255,0.9)',
-            backdropFilter: 'blur(12px)',
-            borderColor: 'rgba(245,166,35,0.2)',
+            display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+            borderBottom: '1px solid var(--hairline)', background: 'var(--header-bg)',
+            backdropFilter: 'var(--glass-blur)',
           }}
+          className="mobile-header"
         >
-          <button onClick={() => setSidebarOpen(true)} className="text-gray-400 hover:text-gray-700">
-            <Menu className="w-5 h-5" />
+          <button onClick={() => setSidebarOpen(true)} style={{ color: 'var(--text-2)' }}>
+            <Menu size={20} />
           </button>
-          <div className="flex items-center gap-2">
-            <HardHat className="w-5 h-5 text-[#F5A623]" />
-            <span className="font-semibold text-gray-800 text-sm">Lookahead Planning</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <HardHat size={18} style={{ color: 'var(--accent)' }} />
+            <span style={{ fontWeight: 600, fontSize: 14 }}>Lookahead Planning</span>
           </div>
+          <button onClick={() => setSidebarOpen(false)} style={{ marginLeft: 'auto', color: 'var(--text-2)' }}>
+            <X size={18} />
+          </button>
         </div>
 
-        <main className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-hidden flex flex-col">
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

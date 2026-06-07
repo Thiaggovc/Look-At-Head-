@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -23,10 +23,100 @@ interface BoardProps {
   projectId: string;
   projectName?: string;
   onRefresh: () => void;
+  renderTopbarExtras?: React.ReactNode;
 }
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+const HUES = [70, 250, 30, 150, 285, 22, 190, 310];
+
+function colHue(key: string, groupBy: string, index: number): number {
+  if (groupBy === 'endDate') return HUES[index % HUES.length];
+  if (groupBy === 'status') {
+    const label = key.toLowerCase();
+    if (label.includes('activ')) return 150;
+    if (label.includes('bloq')) return 22;
+    return 80;
+  }
+  let h = 0;
+  for (const c of key) h = ((h * 31) + c.charCodeAt(0)) >>> 0;
+  return HUES[h % HUES.length];
+}
+
+function useInertiaPan(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    let down = false, startX = 0, startScroll = 0, lastX = 0, vel = 0, lastT = 0, raf = 0;
+    const isInteractive = (t: EventTarget | null) => (t as Element)?.closest?.('.card, button, input, select, .col-body');
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0 || isInteractive(e.target)) return;
+      down = true; startX = lastX = e.clientX; startScroll = el.scrollLeft; lastT = performance.now(); vel = 0;
+      cancelAnimationFrame(raf); el.classList.add('grabbing');
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!down) return;
+      const now = performance.now(), dt = now - lastT || 16;
+      vel = (e.clientX - lastX) / dt; lastX = e.clientX; lastT = now;
+      el.scrollLeft = startScroll - (e.clientX - startX);
+    };
+    const onUp = () => {
+      if (!down) return; down = false; el.classList.remove('grabbing');
+      let v = vel * 16;
+      const decay = () => { v *= 0.92; el.scrollLeft -= v; if (Math.abs(v) > 0.4) raf = requestAnimationFrame(decay); };
+      if (Math.abs(v) > 1) raf = requestAnimationFrame(decay);
+    };
+    el.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove as EventListener);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      el.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove as EventListener);
+      window.removeEventListener('pointerup', onUp);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+}
+
+function useCountUp(target: number, dur = 600): number {
+  const [n, setN] = useState(target);
+  const prev = useRef(target);
+  useEffect(() => {
+    const from = prev.current, to = target, t0 = performance.now();
+    if (from === to) return;
+    let raf: number;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - p, 3);
+      setN(Math.round(from + (to - from) * e));
+      if (p < 1) raf = requestAnimationFrame(tick); else prev.current = to;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, dur]);
+  return n;
+}
+
+function StatsBar({ activities, columns, groupLabel }: { activities: Activity[]; columns: number; groupLabel: string }) {
+  const total   = useCountUp(activities.length);
+  const cols    = useCountUp(columns);
+  const active  = useCountUp(activities.filter(a => a.status === 'active').length);
+  const blocked = useCountUp(activities.filter(a => a.status === 'blocked').length);
+  const pending = useCountUp(activities.filter(a => a.status === 'pending').length);
+  return (
+    <div className="statbar">
+      <span className="stat"><b className="count-anim">{total}</b> actividades</span>
+      <span className="dot" />
+      <span className="stat"><b className="count-anim">{cols}</b> {groupLabel}</span>
+      <span className="dot" />
+      <span className="stat ok"><b className="count-anim">{active}</b> activas</span>
+      <span className="dot" />
+      <span className="stat bad"><b className="count-anim">{blocked}</b> bloqueadas</span>
+      <span className="dot" />
+      <span className="stat warn"><b className="count-anim">{pending}</b> pendientes</span>
+    </div>
+  );
+}
 
 function formatColumnTitle(dateStr: string): { main: string; sub: string; dayIndex: number } {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -91,12 +181,13 @@ function groupActivities(activities: Activity[], groupBy: Filters['groupBy']): M
   return map;
 }
 
-export default function Board({ activities, projectId, projectName, onRefresh }: BoardProps) {
+export default function Board({ activities, projectId, projectName, onRefresh, renderTopbarExtras }: BoardProps) {
   const [filters, setFilters] = useState<Filters>({ groupBy: 'endDate' });
   const [localActivities, setLocalActivities] = useState<Activity[]>(activities);
   const [activeActivity, setActiveActivity] = useState<Activity | null>(null);
   const [editingActivity, setEditingActivity] = useState<Activity | null | undefined>(undefined);
-  // undefined = modal closed, null = new activity, Activity = editing
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useInertiaPan(scrollRef);
 
   if (activities !== localActivities && activities.length !== localActivities.length) {
     setLocalActivities(activities);
@@ -150,61 +241,41 @@ export default function Board({ activities, projectId, projectName, onRefresh }:
 
   return (
     <div className="flex flex-col h-full">
-      <FilterBar filters={filters} onChange={setFilters} activities={localActivities} />
-
-      {/* Stats + Nueva actividad */}
-      <div
-        className="px-5 py-2.5 flex items-center gap-3 text-xs font-medium border-b"
-        style={{
-          background: 'rgba(255,255,255,0.7)',
-          backdropFilter: 'blur(8px)',
-          borderColor: 'rgba(245,166,35,0.2)',
-        }}
-      >
-        <span className="text-gray-500">{filtered.length} actividades</span>
-        <span className="text-gray-300">·</span>
-        <span className="text-gray-500">{columns.length} {groupLabel}</span>
-        <span className="text-gray-300">·</span>
-        <span style={{ color: '#28A745' }}>{filtered.filter(a => a.status === 'active').length} activas</span>
-        <span className="text-gray-300">·</span>
-        <span style={{ color: '#D94B4B' }}>{filtered.filter(a => a.status === 'blocked').length} bloqueadas</span>
-        <span className="text-gray-300">·</span>
-        <span style={{ color: '#D7A700' }}>{filtered.filter(a => a.status === 'pending').length} pendientes</span>
-
-        <span className="flex-1" />
-
-        <button
-          onClick={handleExportPdf}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-          style={{ background: 'rgba(245,166,35,0.15)', color: '#B36B00', border: '1px solid rgba(245,166,35,0.4)' }}
-        >
-          <FileDown className="w-3.5 h-3.5" />
+      {/* Topbar */}
+      <div className="topbar">
+        <div>
+          <div className="title">{projectName ?? 'Tablero'}</div>
+        </div>
+        <span className="spacer" />
+        {renderTopbarExtras}
+        <button className="btn btn-ghost" onClick={handleExportPdf}>
+          <FileDown />
           Exportar PDF
         </button>
-
-        <button
-          onClick={() => setEditingActivity(null)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all"
-          style={{ background: 'linear-gradient(135deg,#F5A623,#E07B00)', boxShadow: '0 2px 8px rgba(245,166,35,0.35)' }}
-        >
-          <Plus className="w-3.5 h-3.5" />
+        <button className="btn btn-primary" onClick={() => setEditingActivity(null)}>
+          <Plus />
           Nueva actividad
         </button>
       </div>
 
+      <FilterBar filters={filters} onChange={setFilters} activities={localActivities} />
+
+      <StatsBar activities={filtered} columns={columns.length} groupLabel={groupLabel} />
+
       {/* Board */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden">
+      <div className="board-scroll" ref={scrollRef}>
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-4 p-5 h-full min-h-0 items-stretch">
+          <div className="board">
             {columns.map(([key, acts], index) => {
               const fmt = filters.groupBy === 'endDate' && /^\d{4}-\d{2}-\d{2}$/.test(key)
                 ? formatColumnTitle(key)
                 : null;
+              const hue = colHue(key, filters.groupBy ?? 'endDate', index);
               return (
                 <WorkFrontColumn
                   key={key}
@@ -212,25 +283,18 @@ export default function Board({ activities, projectId, projectName, onRefresh }:
                   title={fmt ? fmt.main : key}
                   subtitle={fmt ? fmt.sub : undefined}
                   activities={acts}
-                  colorIndex={fmt ? fmt.dayIndex : index}
+                  hue={hue}
                   onEditActivity={setEditingActivity}
                 />
               );
             })}
             {columns.length === 0 && (
-              <div className="flex-1 flex items-center justify-center">
-                <div
-                  className="text-center px-10 py-12 rounded-3xl"
-                  style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(245,166,35,0.2)' }}
-                >
-                  <p className="text-lg font-semibold text-gray-600 mb-1">Sin actividades</p>
-                  <p className="text-sm text-gray-400">Ajusta los filtros o crea una nueva actividad</p>
-                  <button
-                    onClick={() => setEditingActivity(null)}
-                    className="mt-4 flex items-center gap-2 mx-auto px-4 py-2 rounded-lg text-sm font-semibold text-white"
-                    style={{ background: 'linear-gradient(135deg,#F5A623,#E07B00)' }}
-                  >
-                    <Plus className="w-4 h-4" />
+              <div className="board-empty">
+                <div className="box">
+                  <h3>Sin actividades</h3>
+                  <p>Ajusta los filtros o crea una nueva actividad</p>
+                  <button className="btn btn-primary" style={{ margin: '0 auto' }} onClick={() => setEditingActivity(null)}>
+                    <Plus />
                     Nueva actividad
                   </button>
                 </div>
@@ -240,7 +304,7 @@ export default function Board({ activities, projectId, projectName, onRefresh }:
 
           <DragOverlay>
             {activeActivity && (
-              <div className="w-[280px] rotate-2 opacity-90 scale-105">
+              <div className="card ghost" style={{ width: 'var(--col-w)', '--ch': 70 } as React.CSSProperties}>
                 <ActivityCard activity={activeActivity} />
               </div>
             )}
